@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>Robo Desert Racer</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; }
+  html, body { height:100%; overflow:hidden; background:#3a2410; font-family:'Trebuchet MS', Arial, sans-serif; }
+  #gameContainer { position:relative; width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
+  canvas { display:block; background:#e0b878; max-width:100%; max-height:100%; touch-action:none; border:4px solid #5c3a1a; box-shadow:0 0 20px rgba(0,0,0,.5); }
+  #hud { position:absolute; top:10px; left:10px; right:10px; display:flex; justify-content:space-between; align-items:flex-start; pointer-events:none; z-index:5; }
+  .hud-box { background:rgba(0,0,0,.5); color:#fff; padding:6px 12px; border-radius:10px; font-weight:bold; font-size:16px; display:flex; gap:10px; align-items:center; }
+  #hearts { display:flex; gap:4px; }
+  #pauseBtn { pointer-events:auto; background:rgba(0,0,0,.5); color:#fff; border:none; border-radius:10px; width:40px; height:40px; font-size:18px; cursor:pointer; }
+  .overlay { position:absolute; inset:0; background:rgba(0,0,0,.8); display:flex; flex-direction:column; align-items:center; justify-content:center; color:#fff; text-align:center; z-index:20; }
+  .overlay.hidden { display:none; }
+  .overlay h1 { font-size:32px; margin-bottom:10px; color:#ffcc66; text-shadow:2px 2px 0 #000; }
+  .overlay p { font-size:16px; margin-bottom:16px; }
+  .btn { background:#ffcc66; border:none; color:#3a2410; font-weight:bold; padding:12px 26px; border-radius:30px; font-size:16px; cursor:pointer; margin:6px; box-shadow:0 4px 0 #b38f3f; }
+  .btn:active { transform:translateY(3px); box-shadow:0 1px 0 #b38f3f; }
+  #touchControls { position:absolute; bottom:60px; left:0; right:0; display:flex; justify-content:space-between; padding:0 16px; z-index:5; }
+  .touchBtn { width:70px; height:70px; border-radius:50%; background:rgba(255,255,255,.25); border:3px solid rgba(255,255,255,.5); color:#fff; font-size:26px; display:flex; align-items:center; justify-content:center; }
+  #adBannerBottom { position:absolute; bottom:0; left:0; right:0; height:50px; background:rgba(0,0,0,.15); display:flex; align-items:center; justify-content:center; color:rgba(255,255,255,.35); font-size:11px; z-index:3; pointer-events:none; border-top:1px solid rgba(255,255,255,.1); }
+
+  #shopBtn { position:absolute; top:10px; left:50%; transform:translateX(-50%); pointer-events:auto; background:rgba(0,0,0,.5); color:#ffd700; border:none; border-radius:10px; padding:6px 14px; font-size:14px; font-weight:bold; cursor:pointer; z-index:6; }
+  #shopOverlay { position:absolute; inset:0; background:rgba(0,0,0,.88); display:none; flex-direction:column; align-items:center; justify-content:center; color:#fff; text-align:center; z-index:30; padding:20px; }
+  #shopOverlay.open { display:flex; }
+  #shopOverlay h2 { color:#ffd700; margin-bottom:6px; }
+  #shopOverlay .gemCount { font-size:16px; margin-bottom:16px; color:#7fffd4; }
+  #shopOverlay .skinGrid { display:grid; grid-template-columns:1fr 1fr; gap:10px; max-width:420px; margin-bottom:16px; }
+  #shopOverlay .skinCard { background:rgba(255,255,255,.08); border-radius:12px; padding:10px; border:2px solid transparent; cursor:pointer; }
+  #shopOverlay .skinCard.owned { border-color:#4caf50; }
+  #shopOverlay .skinCard.equipped { border-color:#ffd700; }
+  #shopOverlay .skinCard .swatch { width:100%; height:40px; border-radius:8px; margin-bottom:6px; }
+  #shopOverlay .skinCard .label { font-size:12px; }
+  #shopOverlay .skinCard .price { font-size:11px; color:#ffd700; }
+  #shopOverlay .iapRow { display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; justify-content:center; }
+  #shopOverlay .iapBtn { background:#ffd700; color:#1a1a2e; border:none; border-radius:20px; padding:10px 18px; font-weight:bold; font-size:13px; cursor:pointer; }
+  #shopOverlay .closeBtn { background:rgba(255,255,255,.15); color:#fff; border:none; border-radius:20px; padding:10px 24px; font-weight:bold; cursor:pointer; }
+</style>
+</head>
+<body>
+<div id="gameContainer">
+  <div id="adBannerBottom">AdMob Banner Placeholder — 320x50 (reserved by native app shell)</div>
+  <button id="shopBtn">🛍️ Shop</button>
+  <div id="shopOverlay"><h2>CAGF Shop</h2><div class="gemCount">💎 <span id="gemCountDisplay">0</span> Gems</div><div class="skinGrid" id="skinGrid"></div><div class="iapRow"><button class="iapBtn" id="removeAdsBtn">Remove Ads</button><button class="iapBtn" id="familyPassBtn">Family Pass (All Skins + No Ads)</button></div><button class="closeBtn" id="closeShopBtn">Close</button></div>
+
+  <canvas id="game" width="960" height="540"></canvas>
+  <div id="hud">
+    <div style="display:flex; gap:8px;">
+      <div class="hud-box">⚙️ <span id="coinCount">0</span></div>
+      <div class="hud-box">Lvl <span id="levelNum">1</span></div>
+    </div>
+    <div class="hud-box"><div id="hearts"></div></div>
+    <button id="pauseBtn">⏸</button>
+  </div>
+  <div id="touchControls">
+    <div class="touchBtn" id="btnLeft">⬅</div>
+    <div class="touchBtn" id="btnRight">➡</div>
+  </div>
+  <div id="startOverlay" class="overlay">
+    <h1>Robo Desert Racer</h1>
+    <p>Buggy-Bot races across 3 desert lanes, auto-accelerating the whole way —<br>swerve between lanes to dodge cacti, rocks, and rival racers!<br><br>
+    <strong>Arrows / Tap L-R</strong> = Switch Lane</p>
+    <button class="btn" id="startBtn">Start Race</button>
+  </div>
+  <div id="pauseOverlay" class="overlay hidden"><h1>Paused</h1><button class="btn" id="resumeBtn">Resume</button></div>
+  <div id="gameOverOverlay" class="overlay hidden"><h1>Crashed!</h1><p id="gameOverScore"></p><button class="btn" id="retryBtn">Try Again</button></div>
+  <div id="winOverlay" class="overlay hidden"><h1>🏆 Race Won! 🏆</h1><p id="winScore"></p><button class="btn" id="playAgainBtn">Play Again</button></div>
+</div>
+
+<script>
+/* ---------- AdMob Bridge (stub) ---------- */
+const AdBridge = {
+  showInterstitial(){ if(window.AndroidAds && window.AndroidAds.showInterstitial) window.AndroidAds.showInterstitial(); else if(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.iosAds) window.webkit.messageHandlers.iosAds.postMessage('interstitial'); else console.log('[AdMob] interstitial placeholder'); },
+  showRewarded(cb){ if(window.AndroidAds && window.AndroidAds.showRewarded) window.AndroidAds.showRewarded(); else if(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.iosAds) window.webkit.messageHandlers.iosAds.postMessage('rewarded'); else { console.log('[AdMob] rewarded placeholder'); if(cb) cb(); } }
+};
+
+/* ---------- CAGF Shop / Cosmetic IAP System (shared across all 20 games) ----------
+   Cosmetic-only skins recolor the game canvas via CSS filter — no gameplay
+   advantage, so this stays compliant with Google Play / Apple kids-app policy
+   (no pay-to-win, no chance-based loot boxes). Gems are earned free through
+   play AND purchasable. Native wrapper should implement window.IAPBridge with
+   real store purchase flows (Google Play Billing / Apple StoreKit); this stub
+   falls back to localStorage simulation for browser/PC testing.
+   Skins apply a CSS filter to the <canvas id="game"> element directly, so this
+   works identically in every CAGF game without touching draw code. */
+const SKINS = [
+  { id:'default', label:'Classic', price:0, filter:'none' },
+  { id:'ninjaRed', label:'Ninja Red', price:20, filter:'hue-rotate(320deg) saturate(1.4)' },
+  { id:'oceanBlue', label:'Ocean Blue', price:20, filter:'hue-rotate(180deg) saturate(1.3)' },
+  { id:'toxicGreen', label:'Toxic Green', price:25, filter:'hue-rotate(90deg) saturate(1.5)' },
+  { id:'royalGold', label:'Royal Gold', price:30, filter:'hue-rotate(40deg) saturate(1.6) brightness(1.1)' }
+];
+
+const IAPBridge = {
+  getGems(){
+    if(window.CAGFNative && window.CAGFNative.getGems) return window.CAGFNative.getGems();
+    return parseInt(localStorage.getItem('cagf_gems')||'0',10);
+  },
+  setGems(v){
+    if(window.CAGFNative && window.CAGFNative.setGems){ window.CAGFNative.setGems(v); return; }
+    localStorage.setItem('cagf_gems', String(v));
+  },
+  addGems(n){ this.setGems(this.getGems()+n); },
+  ownsSkin(id){
+    if(window.CAGFNative && window.CAGFNative.ownsSkin) return window.CAGFNative.ownsSkin(id);
+    const owned = JSON.parse(localStorage.getItem('cagf_owned_skins')||'["default"]');
+    return owned.includes(id);
+  },
+  buySkin(id, price){
+    const gems=this.getGems();
+    if(gems<price) return false;
+    this.setGems(gems-price);
+    if(window.CAGFNative && window.CAGFNative.grantSkin){ window.CAGFNative.grantSkin(id); }
+    else { const owned=JSON.parse(localStorage.getItem('cagf_owned_skins')||'["default"]'); owned.push(id); localStorage.setItem('cagf_owned_skins',JSON.stringify(owned)); }
+    return true;
+  },
+  getEquippedSkin(){
+    if(window.CAGFNative && window.CAGFNative.getEquippedSkin) return window.CAGFNative.getEquippedSkin();
+    return localStorage.getItem('cagf_equipped_skin')||'default';
+  },
+  equipSkin(id){
+    if(window.CAGFNative && window.CAGFNative.equipSkin){ window.CAGFNative.equipSkin(id); return; }
+    localStorage.setItem('cagf_equipped_skin', id);
+  },
+  hasFamilyPass(){
+    if(window.CAGFNative && window.CAGFNative.hasFamilyPass) return window.CAGFNative.hasFamilyPass();
+    return localStorage.getItem('cagf_family_pass')==='1';
+  },
+  purchaseRemoveAds(){
+    // Real IAP flow implemented natively (Google Play Billing / StoreKit).
+    if(window.CAGFNative && window.CAGFNative.purchaseRemoveAds){ window.CAGFNative.purchaseRemoveAds(); return; }
+    console.log('[IAP] Remove Ads purchase placeholder (no native bridge)');
+    localStorage.setItem('cagf_no_ads','1');
+  },
+  purchaseFamilyPass(){
+    if(window.CAGFNative && window.CAGFNative.purchaseFamilyPass){ window.CAGFNative.purchaseFamilyPass(); return; }
+    console.log('[IAP] Family Pass purchase placeholder (no native bridge)');
+    localStorage.setItem('cagf_family_pass','1');
+    SKINS.forEach(s=>{ if(!IAPBridge.ownsSkin(s.id)) IAPBridge.buySkin(s.id, 0); });
+  }
+};
+
+function applyEquippedSkin(){
+  const equipped = IAPBridge.getEquippedSkin();
+  const skin = SKINS.find(s=>s.id===equipped) || SKINS[0];
+  const canvasEl = document.getElementById('game');
+  if(canvasEl) canvasEl.style.filter = skin.filter;
+}
+
+function renderShop(){
+  document.getElementById('gemCountDisplay').textContent = IAPBridge.getGems();
+  const grid = document.getElementById('skinGrid');
+  grid.innerHTML='';
+  SKINS.forEach(s=>{
+    const owned = IAPBridge.ownsSkin(s.id) || s.price===0;
+    const equipped = IAPBridge.getEquippedSkin()===s.id;
+    const card = document.createElement('div');
+    card.className = 'skinCard' + (owned?' owned':'') + (equipped?' equipped':'');
+    card.innerHTML = `<div class="swatch" style="background:#7fb8d9;filter:${s.filter}"></div><div class="label">${s.label}</div><div class="price">${owned?(equipped?'Equipped':'Owned — tap to equip'):'💎 '+s.price}</div>`;
+    card.addEventListener('click', ()=>{
+      if(owned){ IAPBridge.equipSkin(s.id); applyEquippedSkin(); renderShop(); }
+      else { if(IAPBridge.buySkin(s.id, s.price)){ IAPBridge.equipSkin(s.id); applyEquippedSkin(); } renderShop(); }
+    });
+    grid.appendChild(card);
+  });
+}
+document.getElementById('shopBtn').addEventListener('click', ()=>{ renderShop(); document.getElementById('shopOverlay').classList.add('open'); });
+document.getElementById('closeShopBtn').addEventListener('click', ()=>{ document.getElementById('shopOverlay').classList.remove('open'); });
+document.getElementById('removeAdsBtn').addEventListener('click', ()=> IAPBridge.purchaseRemoveAds());
+document.getElementById('familyPassBtn').addEventListener('click', ()=>{ IAPBridge.purchaseFamilyPass(); renderShop(); });
+applyEquippedSkin();
+
+
+/* =========================================================
+   ROBO DESERT RACER — CAGF Game 16
+   MECHANIC: Auto-scroll vehicle dodge — 3-lane steering only
+   (no jump), constant forward auto-acceleration. Distinct from
+   all 15 prior mechanics.
+   Vanilla JS + Canvas, single file, no external assets.
+   ========================================================= */
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const LANES = [W*0.28, W*0.5, W*0.72];
+
+let state='start', frame=0, coins=0, lives=3, level=1;
+const MAX_LEVEL=10;
+let invincibleTimer=0, shieldActive=false, bossActive=false;
+let speed=6, distanceInLevel=0;
+const LEVEL_LENGTH=2600;
+
+const keys={};
+window.addEventListener('keydown', e=>{ keys[e.code]=true; if(e.code==='ArrowLeft'||e.code==='KeyA') changeLane(-1); if(e.code==='ArrowRight'||e.code==='KeyD') changeLane(1); if(e.code==='KeyP') togglePause(); });
+window.addEventListener('keyup', e=> keys[e.code]=false);
+document.getElementById('btnLeft').addEventListener('touchstart', e=>{e.preventDefault(); changeLane(-1);});
+document.getElementById('btnRight').addEventListener('touchstart', e=>{e.preventDefault(); changeLane(1);});
+
+// ---------- Player: Buggy-Bot (Robot combined with vehicle) ----------
+const player = { lane:1, x:LANES[1], y:H-110, w:50, h:70, hurtTimer:0 };
+function changeLane(dir){ if(state!=='playing') return; player.lane = Math.max(0, Math.min(2, player.lane+dir)); }
+
+// ---------- Obstacles: Cacti(static), Rolling Rocks(static), Rival Racers(moving,lane-swap) ----------
+let obstacles=[], collectibles=[], powerups=[];
+function spawnObstacle(){
+  const lane = Math.floor(Math.random()*3);
+  const roll = Math.random();
+  let ob={lane, x:LANES[lane], y:-60, hit:false};
+  if(roll<0.4){ ob.type='cactus'; ob.w=34; ob.h=50; }
+  else if(roll<0.75){ ob.type='rock'; ob.w=36; ob.h=32; }
+  else { ob.type='rival'; ob.w=44; ob.h=64; ob.swapTimer=60+Math.random()*40; }
+  obstacles.push(ob);
+}
+function spawnCollectible(){
+  const lane=Math.floor(Math.random()*3);
+  const gem=Math.random()<0.2;
+  collectibles.push({lane, x:LANES[lane], y:-30, w:22, h:22, type:gem?'gem':'gear', taken:false});
+}
+function spawnPowerup(){
+  const lane=Math.floor(Math.random()*3);
+  const type=Math.random()<0.5?'shield':'speed';
+  powerups.push({lane, x:LANES[lane], y:-30, w:26, h:26, type, taken:false});
+}
+let speedBoostTimer=0;
+
+// ---------- Boss: Pirate Captain (desert variant — chase vehicle blocking finish line) ----------
+let boss=null;
+function spawnBoss(finalBoss){
+  boss = { lane:1, x:LANES[1], y:170, w:80, h:100, hp:finalBoss?3:2, maxHp:finalBoss?3:2, attackTimer:0, tell:false, tellTimer:0, projectiles:[], swapTimer:80, final:finalBoss };
+  bossActive=true;
+}
+function updateBoss(){
+  if(!boss) return;
+  boss.swapTimer--;
+  if(boss.swapTimer<=0){ boss.swapTimer=90; boss.lane=Math.floor(Math.random()*3); boss.x=LANES[boss.lane]; }
+  boss.attackTimer++;
+  if(boss.attackTimer>100 && !boss.tell){ boss.tell=true; boss.tellTimer=35; }
+  if(boss.tell){
+    boss.tellTimer--;
+    if(boss.tellTimer<=0){
+      boss.tell=false; boss.attackTimer=0;
+      boss.projectiles.push({lane:boss.lane, x:boss.x, y:boss.y+60, vy:6, w:16, h:16});
+      if(boss.final && boss.hp<=1) boss.projectiles.push({lane:(boss.lane+1)%3, x:LANES[(boss.lane+1)%3], y:boss.y+60, vy:6, w:16, h:16});
+    }
+  }
+  boss.projectiles.forEach(p=>p.y+=p.vy);
+  boss.projectiles = boss.projectiles.filter(p=>p.y<H+50);
+  if(boss.lane===player.lane && Math.abs(boss.y-player.y)<80 && invincibleTimer<=0){
+    if(!boss.tell){ boss.hp--; invincibleTimer=60; if(boss.hp<=0){ bossActive=false; const wasFinal=boss.final; boss=null; if(wasFinal) triggerWin(); else advanceLevel(); } }
+    else if(!shieldActive) hurtPlayer();
+  }
+  boss.projectiles.forEach(p=>{ if(p.lane===player.lane && Math.abs(p.y-player.y)<50 && invincibleTimer<=0 && !shieldActive) hurtPlayer(); });
+}
+
+function hurtPlayer(){ if(invincibleTimer>0) return; lives--; player.hurtTimer=40; invincibleTimer=90; updateHUD(); if(lives<=0) triggerGameOver(); }
+function updateHUD(){
+  document.getElementById('coinCount').textContent=coins;
+  document.getElementById('levelNum').textContent=level;
+  const heartsEl=document.getElementById('hearts'); heartsEl.innerHTML='';
+  for(let i=0;i<3;i++){ const s=document.createElement('span'); s.textContent = i<lives?'❤️':'🤍'; heartsEl.appendChild(s); }
+}
+function advanceLevel(){
+  level++; distanceInLevel=0; obstacles=[]; collectibles=[]; powerups=[];
+  speed = 6+level*0.4;
+  if(level>MAX_LEVEL){ triggerWin(); return; }
+  updateHUD();
+}
+
+let roadOffset=0;
+function drawBackground(){
+  ctx.fillStyle='#e0b878'; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#c9975a'; ctx.fillRect(W*0.15,0,W*0.7,H);
+  ctx.strokeStyle='#fff'; ctx.lineWidth=4; ctx.setLineDash([30,20]);
+  roadOffset = (roadOffset+speed)%50;
+  [LANES[0]+LANES[1] >> 1].forEach(()=>{});
+  const laneX1=(LANES[0]+LANES[1])/2, laneX2=(LANES[1]+LANES[2])/2;
+  [laneX1,laneX2].forEach(lx=>{
+    ctx.beginPath(); ctx.moveTo(lx,-50+roadOffset); ctx.lineTo(lx,H); ctx.stroke();
+  });
+  ctx.setLineDash([]);
+}
+function drawPlayer(){
+  const p=player; ctx.save();
+  const flashHurt = p.hurtTimer>0 && Math.floor(frame/4)%2===0;
+  if(flashHurt) ctx.globalAlpha=0.4;
+  ctx.fillStyle='#c0c0d0'; ctx.fillRect(p.x-p.w/2,p.y-p.h/2,p.w,p.h);
+  ctx.fillStyle='#4fc3f7'; ctx.fillRect(p.x-p.w/3,p.y-p.h/2+8,p.w*0.66,14);
+  ctx.fillStyle='#222'; ctx.fillRect(p.x-p.w/2-4,p.y+p.h/2-14,8,14); ctx.fillRect(p.x+p.w/2-4,p.y+p.h/2-14,8,14);
+  ctx.restore();
+  if(shieldActive){ ctx.strokeStyle='rgba(100,200,255,.9)'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(p.x,p.y,p.w*0.9,0,Math.PI*2); ctx.stroke(); }
+}
+function drawObstacle(o){
+  ctx.save();
+  if(o.type==='cactus'){ ctx.fillStyle='#3a7a3a'; ctx.fillRect(o.x-6,o.y-o.h/2,12,o.h); ctx.fillRect(o.x-16,o.y-6,16,10); ctx.fillRect(o.x,o.y-16,16,10); }
+  if(o.type==='rock'){ ctx.fillStyle='#8a7256'; ctx.beginPath(); ctx.arc(o.x,o.y,o.w/2,0,Math.PI*2); ctx.fill(); }
+  if(o.type==='rival'){
+    o.swapTimer--; if(o.swapTimer<=0){ o.swapTimer=70; const nl=Math.max(0,Math.min(2,o.lane+(Math.random()<0.5?-1:1))); o.lane=nl; o.x=LANES[nl]; }
+    ctx.fillStyle='#a83232'; ctx.fillRect(o.x-o.w/2,o.y-o.h/2,o.w,o.h);
+    ctx.fillStyle='#ffd700'; ctx.fillRect(o.x-o.w/3,o.y-o.h/2+8,o.w*0.66,12);
+  }
+  ctx.restore();
+}
+function drawCollectible(c){
+  ctx.save();
+  if(c.type==='gear'){ ctx.fillStyle='#bdbdbd'; ctx.beginPath(); ctx.arc(c.x,c.y,9,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#3a3a5e'; ctx.beginPath(); ctx.arc(c.x,c.y,4,0,Math.PI*2); ctx.fill(); }
+  else { ctx.fillStyle='#00E5FF'; ctx.beginPath(); ctx.moveTo(c.x,c.y-10); ctx.lineTo(c.x+9,c.y); ctx.lineTo(c.x,c.y+10); ctx.lineTo(c.x-9,c.y); ctx.fill(); }
+  ctx.restore();
+}
+function drawPowerup(p){
+  ctx.save(); ctx.fillStyle=p.type==='shield'?'#66CCFF':'#FF66CC';
+  ctx.beginPath(); ctx.arc(p.x,p.y,13,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#fff'; ctx.font='13px Arial'; ctx.textAlign='center'; ctx.fillText(p.type==='shield'?'🛡':'⚡',p.x,p.y+5);
+  ctx.restore();
+}
+function drawBoss(){
+  if(!boss) return; ctx.save();
+  ctx.fillStyle = boss.tell? '#ff5555' : '#4a2a1a';
+  ctx.fillRect(boss.x-boss.w/2, boss.y-boss.h/2, boss.w, boss.h);
+  ctx.fillStyle='#ffd700'; ctx.fillRect(boss.x-boss.w/3, boss.y-boss.h/2+10, boss.w*0.66, 16);
+  ctx.fillStyle='#000'; ctx.fillRect(boss.x-30, boss.y-boss.h/2-16, 60, 8);
+  ctx.fillStyle='#e00'; ctx.fillRect(boss.x-30, boss.y-boss.h/2-16, 60*(boss.hp/boss.maxHp), 8);
+  ctx.restore();
+  boss.projectiles.forEach(p=>{ ctx.fillStyle='#333'; ctx.beginPath(); ctx.arc(p.x,p.y,9,0,Math.PI*2); ctx.fill(); });
+}
+
+function update(){
+  frame++;
+  if(player.hurtTimer>0) player.hurtTimer--;
+  if(invincibleTimer>0) invincibleTimer--;
+  if(speedBoostTimer>0){ speedBoostTimer--; if(speedBoostTimer===0) speed=6+level*0.4; }
+
+  player.x += (LANES[player.lane]-player.x)*0.25;
+
+  if(!bossActive){
+    distanceInLevel += speed;
+    if(frame % Math.max(28,60-level*2.5) === 0) spawnObstacle();
+    if(frame % 55 === 0) spawnCollectible();
+    if(frame % 550 === 0) spawnPowerup();
+    if(distanceInLevel >= LEVEL_LENGTH){
+      if(level===5 || level===MAX_LEVEL) spawnBoss(level===MAX_LEVEL); else advanceLevel();
+    }
+  } else updateBoss();
+
+  obstacles.forEach(o=>{ o.y+=speed; o.x += (LANES[o.lane]-o.x)*0.1; });
+  obstacles = obstacles.filter(o=>o.y<H+80);
+  obstacles.forEach(o=>{
+    if(!o.hit && o.lane===player.lane && Math.abs(o.y-player.y)<(o.h/2+player.h/2-10) && invincibleTimer<=0 && !shieldActive){ o.hit=true; hurtPlayer(); }
+  });
+
+  collectibles.forEach(c=>c.y+=speed);
+  collectibles = collectibles.filter(c=>c.y<H+40);
+  collectibles.forEach(c=>{
+    if(!c.taken && c.lane===player.lane && Math.abs(c.y-player.y)<40){ c.taken=true; coins += c.type==='gem'?5:1; updateHUD(); }
+  });
+  collectibles = collectibles.filter(c=>!c.taken);
+
+  powerups.forEach(p=>p.y+=speed);
+  powerups = powerups.filter(p=>p.y<H+40);
+  powerups.forEach(p=>{
+    if(!p.taken && p.lane===player.lane && Math.abs(p.y-player.y)<40){
+      p.taken=true;
+      if(p.type==='shield'){ shieldActive=true; setTimeout(()=>shieldActive=false,6000); }
+      if(p.type==='speed'){ speedBoostTimer=300; speed=(6+level*0.4)*1.4; }
+    }
+  });
+  powerups = powerups.filter(p=>!p.taken);
+}
+
+function render(){
+  drawBackground();
+  obstacles.forEach(drawObstacle);
+  collectibles.forEach(drawCollectible);
+  powerups.forEach(drawPowerup);
+  if(bossActive) drawBoss();
+  drawPlayer();
+}
+function loop(){ if(state==='playing'){ update(); render(); } requestAnimationFrame(loop); }
+
+function triggerGameOver(){
+  IAPBridge.addGems(Math.floor((typeof coins!=='undefined'?coins:0)/5)+1); AdBridge.showInterstitial(); state='gameover'; document.getElementById('gameOverScore').textContent=`Gears collected: ${coins} — Reached Level ${level}`; document.getElementById('gameOverOverlay').classList.remove('hidden'); }
+function triggerWin(){
+  IAPBridge.addGems(Math.floor((typeof coins!=='undefined'?coins:0)/5)+5); AdBridge.showInterstitial(); state='win'; document.getElementById('winScore').textContent=`Final Score: ${coins} gears & gems!`; document.getElementById('winOverlay').classList.remove('hidden'); }
+function resetGame(){
+  coins=0; lives=3; level=1; speed=6; distanceInLevel=0; frame=0;
+  obstacles=[]; collectibles=[]; powerups=[]; boss=null; bossActive=false;
+  invincibleTimer=0; shieldActive=false; speedBoostTimer=0;
+  player.lane=1; player.x=LANES[1]; player.hurtTimer=0;
+  updateHUD();
+}
+function togglePause(){
+  if(state==='playing'){ state='paused'; document.getElementById('pauseOverlay').classList.remove('hidden'); }
+  else if(state==='paused'){ state='playing'; document.getElementById('pauseOverlay').classList.add('hidden'); }
+}
+document.getElementById('startBtn').addEventListener('click', ()=>{ document.getElementById('startOverlay').classList.add('hidden'); resetGame(); state='playing'; });
+document.getElementById('pauseBtn').addEventListener('click', togglePause);
+document.getElementById('resumeBtn').addEventListener('click', togglePause);
+document.getElementById('retryBtn').addEventListener('click', ()=>{ document.getElementById('gameOverOverlay').classList.add('hidden'); resetGame(); state='playing'; });
+document.getElementById('playAgainBtn').addEventListener('click', ()=>{ document.getElementById('winOverlay').classList.add('hidden'); resetGame(); state='playing'; });
+updateHUD();
+loop();
+</script>
+</body>
+</html>

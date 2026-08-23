@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>Dragon's Castle Siege</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; }
+  html, body { height:100%; overflow:hidden; background:#1a1a2e; font-family:'Trebuchet MS', Arial, sans-serif; }
+  #gameContainer { position:relative; width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
+  canvas { display:block; background:#4a4a6e; max-width:100%; max-height:100%; touch-action:none; border:4px solid #16162a; box-shadow:0 0 20px rgba(0,0,0,.5); }
+  #hud { position:absolute; top:10px; left:10px; right:10px; display:flex; justify-content:space-between; align-items:flex-start; pointer-events:none; z-index:5; }
+  .hud-box { background:rgba(0,0,0,.5); color:#fff; padding:6px 12px; border-radius:10px; font-weight:bold; font-size:16px; display:flex; gap:10px; align-items:center; }
+  #hearts { display:flex; gap:4px; }
+  #pauseBtn { pointer-events:auto; background:rgba(0,0,0,.5); color:#fff; border:none; border-radius:10px; width:40px; height:40px; font-size:18px; cursor:pointer; }
+  .overlay { position:absolute; inset:0; background:rgba(0,0,0,.8); display:flex; flex-direction:column; align-items:center; justify-content:center; color:#fff; text-align:center; z-index:20; }
+  .overlay.hidden { display:none; }
+  .overlay h1 { font-size:32px; margin-bottom:10px; color:#ff8fd4; text-shadow:2px 2px 0 #000; }
+  .overlay p { font-size:16px; margin-bottom:16px; }
+  .btn { background:#ff8fd4; border:none; color:#1a1a2e; font-weight:bold; padding:12px 26px; border-radius:30px; font-size:16px; cursor:pointer; margin:6px; box-shadow:0 4px 0 #b34f96; }
+  .btn:active { transform:translateY(3px); box-shadow:0 1px 0 #b34f96; }
+  #placeHint { position:absolute; bottom:60px; left:0; right:0; text-align:center; color:#fff; font-size:13px; background:rgba(0,0,0,.4); padding:6px; z-index:5; pointer-events:none; }
+  #adBannerBottom { position:absolute; bottom:0; left:0; right:0; height:50px; background:rgba(0,0,0,.15); display:flex; align-items:center; justify-content:center; color:rgba(255,255,255,.35); font-size:11px; z-index:3; pointer-events:none; border-top:1px solid rgba(255,255,255,.1); }
+
+  #shopBtn { position:absolute; top:10px; left:50%; transform:translateX(-50%); pointer-events:auto; background:rgba(0,0,0,.5); color:#ffd700; border:none; border-radius:10px; padding:6px 14px; font-size:14px; font-weight:bold; cursor:pointer; z-index:6; }
+  #shopOverlay { position:absolute; inset:0; background:rgba(0,0,0,.88); display:none; flex-direction:column; align-items:center; justify-content:center; color:#fff; text-align:center; z-index:30; padding:20px; }
+  #shopOverlay.open { display:flex; }
+  #shopOverlay h2 { color:#ffd700; margin-bottom:6px; }
+  #shopOverlay .gemCount { font-size:16px; margin-bottom:16px; color:#7fffd4; }
+  #shopOverlay .skinGrid { display:grid; grid-template-columns:1fr 1fr; gap:10px; max-width:420px; margin-bottom:16px; }
+  #shopOverlay .skinCard { background:rgba(255,255,255,.08); border-radius:12px; padding:10px; border:2px solid transparent; cursor:pointer; }
+  #shopOverlay .skinCard.owned { border-color:#4caf50; }
+  #shopOverlay .skinCard.equipped { border-color:#ffd700; }
+  #shopOverlay .skinCard .swatch { width:100%; height:40px; border-radius:8px; margin-bottom:6px; }
+  #shopOverlay .skinCard .label { font-size:12px; }
+  #shopOverlay .skinCard .price { font-size:11px; color:#ffd700; }
+  #shopOverlay .iapRow { display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; justify-content:center; }
+  #shopOverlay .iapBtn { background:#ffd700; color:#1a1a2e; border:none; border-radius:20px; padding:10px 18px; font-weight:bold; font-size:13px; cursor:pointer; }
+  #shopOverlay .closeBtn { background:rgba(255,255,255,.15); color:#fff; border:none; border-radius:20px; padding:10px 24px; font-weight:bold; cursor:pointer; }
+</style>
+</head>
+<body>
+<div id="gameContainer">
+  <div id="adBannerBottom">AdMob Banner Placeholder — 320x50 (reserved by native app shell)</div>
+  <button id="shopBtn">🛍️ Shop</button>
+  <div id="shopOverlay"><h2>CAGF Shop</h2><div class="gemCount">💎 <span id="gemCountDisplay">0</span> Gems</div><div class="skinGrid" id="skinGrid"></div><div class="iapRow"><button class="iapBtn" id="removeAdsBtn">Remove Ads</button><button class="iapBtn" id="familyPassBtn">Family Pass (All Skins + No Ads)</button></div><button class="closeBtn" id="closeShopBtn">Close</button></div>
+
+  <canvas id="game" width="960" height="540"></canvas>
+  <div id="hud">
+    <div style="display:flex; gap:8px;">
+      <div class="hud-box">🪙 <span id="coinCount">0</span></div>
+      <div class="hud-box">Lvl <span id="levelNum">1</span></div>
+    </div>
+    <div class="hud-box"><div id="hearts"></div></div>
+    <button id="pauseBtn">⏸</button>
+  </div>
+  <div id="placeHint">Tap anywhere on the wall to place a Knight Defender (costs 3 coins)</div>
+  <div id="startOverlay" class="overlay">
+    <h1>Dragon's Castle Siege</h1>
+    <p>Sir Dracorider must defend the castle gate as skeleton waves approach!<br>Tap to place Knight Defenders along the wall — collect coins from defeated foes<br>to afford more defenders as waves get tougher.<br><br>
+    <strong>Tap wall</strong> = Place defender &nbsp;|&nbsp; Gate breaks if too many enemies get through!</p>
+    <button class="btn" id="startBtn">Defend the Castle</button>
+  </div>
+  <div id="pauseOverlay" class="overlay hidden"><h1>Paused</h1><button class="btn" id="resumeBtn">Resume</button></div>
+  <div id="gameOverOverlay" class="overlay hidden"><h1>Gate Breached!</h1><p id="gameOverScore"></p><button class="btn" id="retryBtn">Try Again</button></div>
+  <div id="winOverlay" class="overlay hidden"><h1>🏆 Siege Repelled! 🏆</h1><p id="winScore"></p><button class="btn" id="playAgainBtn">Play Again</button></div>
+</div>
+
+<script>
+/* ---------- AdMob Bridge (stub) ---------- */
+const AdBridge = {
+  showInterstitial(){ if(window.AndroidAds && window.AndroidAds.showInterstitial) window.AndroidAds.showInterstitial(); else if(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.iosAds) window.webkit.messageHandlers.iosAds.postMessage('interstitial'); else console.log('[AdMob] interstitial placeholder'); },
+  showRewarded(cb){ if(window.AndroidAds && window.AndroidAds.showRewarded) window.AndroidAds.showRewarded(); else if(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.iosAds) window.webkit.messageHandlers.iosAds.postMessage('rewarded'); else { console.log('[AdMob] rewarded placeholder'); if(cb) cb(); } }
+};
+
+/* ---------- CAGF Shop / Cosmetic IAP System (shared across all 20 games) ----------
+   Cosmetic-only skins recolor the game canvas via CSS filter — no gameplay
+   advantage, so this stays compliant with Google Play / Apple kids-app policy
+   (no pay-to-win, no chance-based loot boxes). Gems are earned free through
+   play AND purchasable. Native wrapper should implement window.IAPBridge with
+   real store purchase flows (Google Play Billing / Apple StoreKit); this stub
+   falls back to localStorage simulation for browser/PC testing.
+   Skins apply a CSS filter to the <canvas id="game"> element directly, so this
+   works identically in every CAGF game without touching draw code. */
+const SKINS = [
+  { id:'default', label:'Classic', price:0, filter:'none' },
+  { id:'ninjaRed', label:'Ninja Red', price:20, filter:'hue-rotate(320deg) saturate(1.4)' },
+  { id:'oceanBlue', label:'Ocean Blue', price:20, filter:'hue-rotate(180deg) saturate(1.3)' },
+  { id:'toxicGreen', label:'Toxic Green', price:25, filter:'hue-rotate(90deg) saturate(1.5)' },
+  { id:'royalGold', label:'Royal Gold', price:30, filter:'hue-rotate(40deg) saturate(1.6) brightness(1.1)' }
+];
+
+const IAPBridge = {
+  getGems(){
+    if(window.CAGFNative && window.CAGFNative.getGems) return window.CAGFNative.getGems();
+    return parseInt(localStorage.getItem('cagf_gems')||'0',10);
+  },
+  setGems(v){
+    if(window.CAGFNative && window.CAGFNative.setGems){ window.CAGFNative.setGems(v); return; }
+    localStorage.setItem('cagf_gems', String(v));
+  },
+  addGems(n){ this.setGems(this.getGems()+n); },
+  ownsSkin(id){
+    if(window.CAGFNative && window.CAGFNative.ownsSkin) return window.CAGFNative.ownsSkin(id);
+    const owned = JSON.parse(localStorage.getItem('cagf_owned_skins')||'["default"]');
+    return owned.includes(id);
+  },
+  buySkin(id, price){
+    const gems=this.getGems();
+    if(gems<price) return false;
+    this.setGems(gems-price);
+    if(window.CAGFNative && window.CAGFNative.grantSkin){ window.CAGFNative.grantSkin(id); }
+    else { const owned=JSON.parse(localStorage.getItem('cagf_owned_skins')||'["default"]'); owned.push(id); localStorage.setItem('cagf_owned_skins',JSON.stringify(owned)); }
+    return true;
+  },
+  getEquippedSkin(){
+    if(window.CAGFNative && window.CAGFNative.getEquippedSkin) return window.CAGFNative.getEquippedSkin();
+    return localStorage.getItem('cagf_equipped_skin')||'default';
+  },
+  equipSkin(id){
+    if(window.CAGFNative && window.CAGFNative.equipSkin){ window.CAGFNative.equipSkin(id); return; }
+    localStorage.setItem('cagf_equipped_skin', id);
+  },
+  hasFamilyPass(){
+    if(window.CAGFNative && window.CAGFNative.hasFamilyPass) return window.CAGFNative.hasFamilyPass();
+    return localStorage.getItem('cagf_family_pass')==='1';
+  },
+  purchaseRemoveAds(){
+    // Real IAP flow implemented natively (Google Play Billing / StoreKit).
+    if(window.CAGFNative && window.CAGFNative.purchaseRemoveAds){ window.CAGFNative.purchaseRemoveAds(); return; }
+    console.log('[IAP] Remove Ads purchase placeholder (no native bridge)');
+    localStorage.setItem('cagf_no_ads','1');
+  },
+  purchaseFamilyPass(){
+    if(window.CAGFNative && window.CAGFNative.purchaseFamilyPass){ window.CAGFNative.purchaseFamilyPass(); return; }
+    console.log('[IAP] Family Pass purchase placeholder (no native bridge)');
+    localStorage.setItem('cagf_family_pass','1');
+    SKINS.forEach(s=>{ if(!IAPBridge.ownsSkin(s.id)) IAPBridge.buySkin(s.id, 0); });
+  }
+};
+
+function applyEquippedSkin(){
+  const equipped = IAPBridge.getEquippedSkin();
+  const skin = SKINS.find(s=>s.id===equipped) || SKINS[0];
+  const canvasEl = document.getElementById('game');
+  if(canvasEl) canvasEl.style.filter = skin.filter;
+}
+
+function renderShop(){
+  document.getElementById('gemCountDisplay').textContent = IAPBridge.getGems();
+  const grid = document.getElementById('skinGrid');
+  grid.innerHTML='';
+  SKINS.forEach(s=>{
+    const owned = IAPBridge.ownsSkin(s.id) || s.price===0;
+    const equipped = IAPBridge.getEquippedSkin()===s.id;
+    const card = document.createElement('div');
+    card.className = 'skinCard' + (owned?' owned':'') + (equipped?' equipped':'');
+    card.innerHTML = `<div class="swatch" style="background:#7fb8d9;filter:${s.filter}"></div><div class="label">${s.label}</div><div class="price">${owned?(equipped?'Equipped':'Owned — tap to equip'):'💎 '+s.price}</div>`;
+    card.addEventListener('click', ()=>{
+      if(owned){ IAPBridge.equipSkin(s.id); applyEquippedSkin(); renderShop(); }
+      else { if(IAPBridge.buySkin(s.id, s.price)){ IAPBridge.equipSkin(s.id); applyEquippedSkin(); } renderShop(); }
+    });
+    grid.appendChild(card);
+  });
+}
+document.getElementById('shopBtn').addEventListener('click', ()=>{ renderShop(); document.getElementById('shopOverlay').classList.add('open'); });
+document.getElementById('closeShopBtn').addEventListener('click', ()=>{ document.getElementById('shopOverlay').classList.remove('open'); });
+document.getElementById('removeAdsBtn').addEventListener('click', ()=> IAPBridge.purchaseRemoveAds());
+document.getElementById('familyPassBtn').addEventListener('click', ()=>{ IAPBridge.purchaseFamilyPass(); renderShop(); });
+applyEquippedSkin();
+
+
+/* =========================================================
+   DRAGON'S CASTLE SIEGE — CAGF Game 17
+   MECHANIC: Tower defense-lite — place defenders along a wall
+   (tap/click), earn coins from kills to place more, defend a
+   gate health pool against enemy waves. Distinct from all 16
+   prior mechanics.
+   Vanilla JS + Canvas, single file, no external assets.
+   ========================================================= */
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const WALL_Y = 380, GATE_X = 60;
+
+let state='start', frame=0, coins=20, level=1, gateHP=10, maxGateHP=10;
+const MAX_LEVEL=10;
+let bossActive=false, waveEnemiesLeft=0, waveTimer=0, betweenWaves=true, betweenWaveTimer=120;
+
+window.addEventListener('keydown', e=>{ if(e.code==='KeyP') togglePause(); });
+canvas.addEventListener('click', handleTap);
+canvas.addEventListener('touchstart', e=>{ e.preventDefault(); const r=canvas.getBoundingClientRect(); const t=e.touches[0]; handleTapAt((t.clientX-r.left)*(W/r.width),(t.clientY-r.top)*(H/r.height)); });
+function handleTap(e){ const r=canvas.getBoundingClientRect(); handleTapAt((e.clientX-r.left)*(W/r.width),(e.clientY-r.top)*(H/r.height)); }
+
+// ---------- Defenders (placed by player): Knight (melee, defends nearby) ----------
+let defenders=[];
+const DEFENDER_COST=3;
+function handleTapAt(x,y){
+  if(state!=='playing') return;
+  if(y<WALL_Y-60 || y>H-40 || x<GATE_X+80) return;
+  if(coins<DEFENDER_COST) return;
+  const tooClose = defenders.some(d=>Math.abs(d.x-x)<50);
+  if(tooClose) return;
+  coins -= DEFENDER_COST;
+  defenders.push({x, y:WALL_Y-20, hp:3, maxHp:3, atkCooldown:0});
+  updateHUD();
+}
+
+// ---------- Enemies: Skeletons (ground), Flying Bats (air, bypass ground defenders) ----------
+let enemies=[];
+function spawnWave(lv){
+  waveEnemiesLeft = 5+lv*2;
+  waveTimer=0;
+}
+function spawnEnemy(){
+  const isBat = Math.random()<0.25;
+  enemies.push({
+    type: isBat?'bat':'skeleton',
+    x:W+30, y: isBat? WALL_Y-90 : WALL_Y-20,
+    hp: isBat?1:2, speed: 0.8+level*0.08+(isBat?0.4:0)
+  });
+}
+
+// ---------- Boss: Dark Wizard (castle variant — summons extra skeletons, must be hit by 3 nearby defenders total) ----------
+let boss=null;
+function spawnBoss(finalBoss){
+  boss = { x:W-40, y:WALL_Y-40, hp:finalBoss?8:5, maxHp:finalBoss?8:5, speed:0.5, attackTimer:0, final:finalBoss };
+  bossActive=true;
+}
+
+function hurtGate(amount){ gateHP -= amount; updateHUD(); if(gateHP<=0) triggerGameOver(); }
+function updateHUD(){
+  document.getElementById('coinCount').textContent=coins;
+  document.getElementById('levelNum').textContent=level;
+  const heartsEl=document.getElementById('hearts'); heartsEl.innerHTML='';
+  const heartsToShow = Math.ceil(gateHP/maxGateHP*3);
+  for(let i=0;i<3;i++){ const s=document.createElement('span'); s.textContent = i<heartsToShow?'❤️':'🤍'; heartsEl.appendChild(s); }
+}
+function advanceLevel(){
+  level++;
+  if(level>MAX_LEVEL){ triggerWin(); return; }
+  gateHP = Math.min(maxGateHP, gateHP+2);
+  betweenWaves=true; betweenWaveTimer=150;
+  updateHUD();
+}
+
+function drawBackground(){
+  ctx.fillStyle='#4a4a6e'; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#3a3a5e'; ctx.fillRect(0,WALL_Y,W,H-WALL_Y);
+  ctx.fillStyle='#2a2a4a'; ctx.fillRect(0,WALL_Y-10,W,10);
+  // gate
+  ctx.fillStyle='#5c3a1a'; ctx.fillRect(GATE_X-40,WALL_Y-90,60,90);
+  ctx.fillStyle='#8a5a2a'; ctx.fillRect(GATE_X-35,WALL_Y-85,50,80);
+}
+function drawDefender(d){
+  ctx.save();
+  ctx.fillStyle='#c0c0d0'; ctx.fillRect(d.x-12,d.y-30,24,30);
+  ctx.fillStyle='#4fc3f7'; ctx.fillRect(d.x-6,d.y-24,12,8);
+  ctx.fillStyle='#000'; ctx.fillRect(d.x-2,WALL_Y-38,4,10);
+  // hp bar
+  ctx.fillStyle='#000'; ctx.fillRect(d.x-14,d.y-38,28,4);
+  ctx.fillStyle='#4caf50'; ctx.fillRect(d.x-14,d.y-38,28*(d.hp/d.maxHp),4);
+  ctx.restore();
+}
+function drawEnemy(e){
+  ctx.save();
+  if(e.type==='skeleton'){ ctx.fillStyle='#e8e0d0'; ctx.fillRect(e.x-6,e.y-24,12,24); ctx.beginPath(); ctx.arc(e.x,e.y-28,9,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#000'; ctx.fillRect(e.x-4,e.y-30,3,3); ctx.fillRect(e.x+1,e.y-30,3,3); }
+  else { ctx.fillStyle='#4a2a6c'; ctx.beginPath(); ctx.ellipse(e.x-10,e.y+6,10,6,0.4,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(e.x+10,e.y+6,10,6,-0.4,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#2c1a44'; ctx.beginPath(); ctx.arc(e.x,e.y+6,7,0,Math.PI*2); ctx.fill(); }
+  ctx.restore();
+}
+function drawBoss(){
+  if(!boss) return; ctx.save();
+  ctx.fillStyle='#3a1a5c'; ctx.fillRect(boss.x-30,boss.y-70,60,70);
+  ctx.fillStyle='#c060ff'; ctx.beginPath(); ctx.arc(boss.x,boss.y-75,15,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#000'; ctx.fillRect(boss.x-30,boss.y-100,60,8);
+  ctx.fillStyle='#e00'; ctx.fillRect(boss.x-30,boss.y-100,60*(boss.hp/boss.maxHp),8);
+  ctx.restore();
+}
+
+function update(){
+  frame++;
+
+  if(betweenWaves){
+    betweenWaveTimer--;
+    if(betweenWaveTimer<=0){
+      betweenWaves=false;
+      if(level===5 || level===MAX_LEVEL){ spawnBoss(level===MAX_LEVEL); }
+      else spawnWave(level);
+    }
+    return;
+  }
+
+  if(!bossActive){
+    waveTimer++;
+    if(waveEnemiesLeft>0 && waveTimer%Math.max(30,70-level*4)===0){ spawnEnemy(); waveEnemiesLeft--; }
+  }
+
+  // enemy movement
+  enemies.forEach(e=>{ e.x -= e.speed; });
+  // defenders attack nearby ground enemies
+  defenders.forEach(d=>{
+    if(d.atkCooldown>0) d.atkCooldown--;
+    let target=null, bestDist=60;
+    enemies.forEach(e=>{
+      if(e.type==='skeleton'){ const dist=Math.abs(e.x-d.x); if(dist<bestDist){ bestDist=dist; target=e; } }
+    });
+    if(target && d.atkCooldown<=0){ target.hp--; d.atkCooldown=35; }
+  });
+  // enemies damage nearby defenders / gate
+  enemies = enemies.filter(e=>{
+    if(e.hp<=0){ coins+=2; updateHUD(); return false; }
+    if(e.type==='skeleton'){
+      const blockingDefender = defenders.find(d=>Math.abs(d.x-e.x)<24 && e.x<d.x+20);
+      if(blockingDefender){
+        blockingDefender.hp -= 0.02;
+        if(blockingDefender.hp<=0){ defenders = defenders.filter(d=>d!==blockingDefender); }
+        return true;
+      }
+    }
+    if(e.x < GATE_X){ hurtGate(1); return false; }
+    return true;
+  });
+
+  if(bossActive && boss){
+    boss.x -= boss.speed;
+    boss.attackTimer++;
+    if(boss.attackTimer>150){ boss.attackTimer=0; enemies.push({type:'skeleton', x:boss.x-20, y:WALL_Y-20, hp:2, speed:1}); }
+    const nearbyDefenders = defenders.filter(d=>Math.abs(d.x-boss.x)<40);
+    nearbyDefenders.forEach(d=>{ if(frame%40===0) boss.hp -= 0.5; });
+    if(boss.x < GATE_X){ hurtGate(3); bossActive=false; const wasFinal=boss.final; boss=null; if(!wasFinal) advanceLevel(); }
+    if(boss.hp<=0){ bossActive=false; const wasFinal=boss.final; coins+=15; updateHUD(); boss=null; if(wasFinal) triggerWin(); else advanceLevel(); }
+  }
+
+  if(!bossActive && waveEnemiesLeft<=0 && enemies.length===0){
+    advanceLevel();
+  }
+}
+
+function render(){
+  drawBackground();
+  defenders.forEach(drawDefender);
+  enemies.forEach(drawEnemy);
+  if(bossActive) drawBoss();
+  if(betweenWaves){
+    ctx.fillStyle='rgba(0,0,0,.5)'; ctx.fillRect(0,H/2-30,W,60);
+    ctx.fillStyle='#fff'; ctx.font='24px Arial'; ctx.textAlign='center';
+    ctx.fillText(`Wave ${level} incoming...`, W/2, H/2+8);
+  }
+}
+function loop(){ if(state==='playing'){ update(); render(); } requestAnimationFrame(loop); }
+
+function triggerGameOver(){
+  IAPBridge.addGems(Math.floor((typeof coins!=='undefined'?coins:0)/5)+1); AdBridge.showInterstitial(); state='gameover'; document.getElementById('gameOverScore').textContent=`Coins earned: ${coins} — Reached Level ${level}`; document.getElementById('gameOverOverlay').classList.remove('hidden'); }
+function triggerWin(){
+  IAPBridge.addGems(Math.floor((typeof coins!=='undefined'?coins:0)/5)+5); AdBridge.showInterstitial(); state='win'; document.getElementById('winScore').textContent=`Final Score: ${coins} coins!`; document.getElementById('winOverlay').classList.remove('hidden'); }
+function resetGame(){
+  coins=20; level=1; gateHP=10; maxGateHP=10; frame=0;
+  defenders=[]; enemies=[]; boss=null; bossActive=false;
+  betweenWaves=true; betweenWaveTimer=120; waveEnemiesLeft=0;
+  updateHUD();
+}
+function togglePause(){
+  if(state==='playing'){ state='paused'; document.getElementById('pauseOverlay').classList.remove('hidden'); }
+  else if(state==='paused'){ state='playing'; document.getElementById('pauseOverlay').classList.add('hidden'); }
+}
+document.getElementById('startBtn').addEventListener('click', ()=>{ document.getElementById('startOverlay').classList.add('hidden'); resetGame(); state='playing'; });
+document.getElementById('pauseBtn').addEventListener('click', togglePause);
+document.getElementById('resumeBtn').addEventListener('click', togglePause);
+document.getElementById('retryBtn').addEventListener('click', ()=>{ document.getElementById('gameOverOverlay').classList.add('hidden'); resetGame(); state='playing'; });
+document.getElementById('playAgainBtn').addEventListener('click', ()=>{ document.getElementById('winOverlay').classList.add('hidden'); resetGame(); state='playing'; });
+updateHUD();
+loop();
+</script>
+</body>
+</html>

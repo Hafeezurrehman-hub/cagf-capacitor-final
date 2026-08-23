@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>Ocean Diamond Hunt</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; }
+  html, body { height:100%; overflow:hidden; background:#012432; font-family:'Trebuchet MS', Arial, sans-serif; }
+  #gameContainer { position:relative; width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
+  canvas { display:block; background:#0b6e8f; max-width:100%; max-height:100%; touch-action:none; border:4px solid #023a4d; box-shadow:0 0 20px rgba(0,0,0,.5); }
+  #hud { position:absolute; top:10px; left:10px; right:10px; display:flex; justify-content:space-between; align-items:flex-start; pointer-events:none; z-index:5; }
+  .hud-box { background:rgba(0,0,0,.5); color:#fff; padding:6px 12px; border-radius:10px; font-weight:bold; font-size:16px; display:flex; gap:10px; align-items:center; }
+  #hearts { display:flex; gap:4px; }
+  #pauseBtn { pointer-events:auto; background:rgba(0,0,0,.5); color:#fff; border:none; border-radius:10px; width:40px; height:40px; font-size:18px; cursor:pointer; }
+  .overlay { position:absolute; inset:0; background:rgba(0,0,0,.8); display:flex; flex-direction:column; align-items:center; justify-content:center; color:#fff; text-align:center; z-index:20; }
+  .overlay.hidden { display:none; }
+  .overlay h1 { font-size:32px; margin-bottom:10px; color:#66e0ff; text-shadow:2px 2px 0 #000; }
+  .overlay p { font-size:16px; margin-bottom:16px; }
+  .btn { background:#66e0ff; border:none; color:#012432; font-weight:bold; padding:12px 26px; border-radius:30px; font-size:16px; cursor:pointer; margin:6px; box-shadow:0 4px 0 #2a8ab3; }
+  .btn:active { transform:translateY(3px); box-shadow:0 1px 0 #2a8ab3; }
+  #touchControls { position:absolute; bottom:60px; left:0; right:0; display:flex; justify-content:center; z-index:5; }
+  .dpadGrid { display:grid; grid-template-columns:56px 56px 56px; grid-template-rows:56px 56px 56px; gap:4px; }
+  .touchBtn { border-radius:14px; background:rgba(255,255,255,.2); border:3px solid rgba(255,255,255,.4); color:#fff; font-size:20px; display:flex; align-items:center; justify-content:center; }
+  #adBannerBottom { position:absolute; bottom:0; left:0; right:0; height:50px; background:rgba(0,0,0,.15); display:flex; align-items:center; justify-content:center; color:rgba(255,255,255,.35); font-size:11px; z-index:3; pointer-events:none; border-top:1px solid rgba(255,255,255,.1); }
+
+  #shopBtn { position:absolute; top:10px; left:50%; transform:translateX(-50%); pointer-events:auto; background:rgba(0,0,0,.5); color:#ffd700; border:none; border-radius:10px; padding:6px 14px; font-size:14px; font-weight:bold; cursor:pointer; z-index:6; }
+  #shopOverlay { position:absolute; inset:0; background:rgba(0,0,0,.88); display:none; flex-direction:column; align-items:center; justify-content:center; color:#fff; text-align:center; z-index:30; padding:20px; }
+  #shopOverlay.open { display:flex; }
+  #shopOverlay h2 { color:#ffd700; margin-bottom:6px; }
+  #shopOverlay .gemCount { font-size:16px; margin-bottom:16px; color:#7fffd4; }
+  #shopOverlay .skinGrid { display:grid; grid-template-columns:1fr 1fr; gap:10px; max-width:420px; margin-bottom:16px; }
+  #shopOverlay .skinCard { background:rgba(255,255,255,.08); border-radius:12px; padding:10px; border:2px solid transparent; cursor:pointer; }
+  #shopOverlay .skinCard.owned { border-color:#4caf50; }
+  #shopOverlay .skinCard.equipped { border-color:#ffd700; }
+  #shopOverlay .skinCard .swatch { width:100%; height:40px; border-radius:8px; margin-bottom:6px; }
+  #shopOverlay .skinCard .label { font-size:12px; }
+  #shopOverlay .skinCard .price { font-size:11px; color:#ffd700; }
+  #shopOverlay .iapRow { display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; justify-content:center; }
+  #shopOverlay .iapBtn { background:#ffd700; color:#1a1a2e; border:none; border-radius:20px; padding:10px 18px; font-weight:bold; font-size:13px; cursor:pointer; }
+  #shopOverlay .closeBtn { background:rgba(255,255,255,.15); color:#fff; border:none; border-radius:20px; padding:10px 24px; font-weight:bold; cursor:pointer; }
+</style>
+</head>
+<body>
+<div id="gameContainer">
+  <div id="adBannerBottom">AdMob Banner Placeholder — 320x50 (reserved by native app shell)</div>
+  <button id="shopBtn">🛍️ Shop</button>
+  <div id="shopOverlay"><h2>CAGF Shop</h2><div class="gemCount">💎 <span id="gemCountDisplay">0</span> Gems</div><div class="skinGrid" id="skinGrid"></div><div class="iapRow"><button class="iapBtn" id="removeAdsBtn">Remove Ads</button><button class="iapBtn" id="familyPassBtn">Family Pass (All Skins + No Ads)</button></div><button class="closeBtn" id="closeShopBtn">Close</button></div>
+
+  <canvas id="game" width="960" height="540"></canvas>
+  <div id="hud">
+    <div style="display:flex; gap:8px;">
+      <div class="hud-box">💎 <span id="coinCount">0</span> / <span id="targetCount">0</span></div>
+      <div class="hud-box">Lvl <span id="levelNum">1</span></div>
+    </div>
+    <div class="hud-box"><div id="hearts"></div></div>
+    <button id="pauseBtn">⏸</button>
+  </div>
+  <div id="touchControls">
+    <div class="dpadGrid">
+      <div></div><div class="touchBtn" id="btnUp">⬆</div><div></div>
+      <div class="touchBtn" id="btnLeft">⬅</div><div></div><div class="touchBtn" id="btnRight">➡</div>
+      <div></div><div class="touchBtn" id="btnDown">⬇</div><div></div>
+    </div>
+  </div>
+  <div id="startOverlay" class="overlay">
+    <h1>Ocean Diamond Hunt</h1>
+    <p>Coral must navigate the sunken reef maze, collecting diamonds<br>while ocean currents sweep her off course and jellyfish patrol the corridors!<br><br>
+    <strong>Arrows / WASD / D-Pad</strong> = Swim through corridors &nbsp;|&nbsp; Currents push you — fight back!</p>
+    <button class="btn" id="startBtn">Dive In</button>
+  </div>
+  <div id="pauseOverlay" class="overlay hidden"><h1>Paused</h1><button class="btn" id="resumeBtn">Resume</button></div>
+  <div id="gameOverOverlay" class="overlay hidden"><h1>Lost at Sea!</h1><p id="gameOverScore"></p><button class="btn" id="retryBtn">Try Again</button></div>
+  <div id="winOverlay" class="overlay hidden"><h1>🏆 Reef Treasure Found! 🏆</h1><p id="winScore"></p><button class="btn" id="playAgainBtn">Play Again</button></div>
+</div>
+
+<script>
+/* ---------- AdMob Bridge (stub) ---------- */
+const AdBridge = {
+  showInterstitial(){ if(window.AndroidAds && window.AndroidAds.showInterstitial) window.AndroidAds.showInterstitial(); else if(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.iosAds) window.webkit.messageHandlers.iosAds.postMessage('interstitial'); else console.log('[AdMob] interstitial placeholder'); },
+  showRewarded(cb){ if(window.AndroidAds && window.AndroidAds.showRewarded) window.AndroidAds.showRewarded(); else if(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.iosAds) window.webkit.messageHandlers.iosAds.postMessage('rewarded'); else { console.log('[AdMob] rewarded placeholder'); if(cb) cb(); } }
+};
+
+/* ---------- CAGF Shop / Cosmetic IAP System (shared across all 20 games) ----------
+   Cosmetic-only skins recolor the game canvas via CSS filter — no gameplay
+   advantage, so this stays compliant with Google Play / Apple kids-app policy
+   (no pay-to-win, no chance-based loot boxes). Gems are earned free through
+   play AND purchasable. Native wrapper should implement window.IAPBridge with
+   real store purchase flows (Google Play Billing / Apple StoreKit); this stub
+   falls back to localStorage simulation for browser/PC testing.
+   Skins apply a CSS filter to the <canvas id="game"> element directly, so this
+   works identically in every CAGF game without touching draw code. */
+const SKINS = [
+  { id:'default', label:'Classic', price:0, filter:'none' },
+  { id:'ninjaRed', label:'Ninja Red', price:20, filter:'hue-rotate(320deg) saturate(1.4)' },
+  { id:'oceanBlue', label:'Ocean Blue', price:20, filter:'hue-rotate(180deg) saturate(1.3)' },
+  { id:'toxicGreen', label:'Toxic Green', price:25, filter:'hue-rotate(90deg) saturate(1.5)' },
+  { id:'royalGold', label:'Royal Gold', price:30, filter:'hue-rotate(40deg) saturate(1.6) brightness(1.1)' }
+];
+
+const IAPBridge = {
+  getGems(){
+    if(window.CAGFNative && window.CAGFNative.getGems) return window.CAGFNative.getGems();
+    return parseInt(localStorage.getItem('cagf_gems')||'0',10);
+  },
+  setGems(v){
+    if(window.CAGFNative && window.CAGFNative.setGems){ window.CAGFNative.setGems(v); return; }
+    localStorage.setItem('cagf_gems', String(v));
+  },
+  addGems(n){ this.setGems(this.getGems()+n); },
+  ownsSkin(id){
+    if(window.CAGFNative && window.CAGFNative.ownsSkin) return window.CAGFNative.ownsSkin(id);
+    const owned = JSON.parse(localStorage.getItem('cagf_owned_skins')||'["default"]');
+    return owned.includes(id);
+  },
+  buySkin(id, price){
+    const gems=this.getGems();
+    if(gems<price) return false;
+    this.setGems(gems-price);
+    if(window.CAGFNative && window.CAGFNative.grantSkin){ window.CAGFNative.grantSkin(id); }
+    else { const owned=JSON.parse(localStorage.getItem('cagf_owned_skins')||'["default"]'); owned.push(id); localStorage.setItem('cagf_owned_skins',JSON.stringify(owned)); }
+    return true;
+  },
+  getEquippedSkin(){
+    if(window.CAGFNative && window.CAGFNative.getEquippedSkin) return window.CAGFNative.getEquippedSkin();
+    return localStorage.getItem('cagf_equipped_skin')||'default';
+  },
+  equipSkin(id){
+    if(window.CAGFNative && window.CAGFNative.equipSkin){ window.CAGFNative.equipSkin(id); return; }
+    localStorage.setItem('cagf_equipped_skin', id);
+  },
+  hasFamilyPass(){
+    if(window.CAGFNative && window.CAGFNative.hasFamilyPass) return window.CAGFNative.hasFamilyPass();
+    return localStorage.getItem('cagf_family_pass')==='1';
+  },
+  purchaseRemoveAds(){
+    // Real IAP flow implemented natively (Google Play Billing / StoreKit).
+    if(window.CAGFNative && window.CAGFNative.purchaseRemoveAds){ window.CAGFNative.purchaseRemoveAds(); return; }
+    console.log('[IAP] Remove Ads purchase placeholder (no native bridge)');
+    localStorage.setItem('cagf_no_ads','1');
+  },
+  purchaseFamilyPass(){
+    if(window.CAGFNative && window.CAGFNative.purchaseFamilyPass){ window.CAGFNative.purchaseFamilyPass(); return; }
+    console.log('[IAP] Family Pass purchase placeholder (no native bridge)');
+    localStorage.setItem('cagf_family_pass','1');
+    SKINS.forEach(s=>{ if(!IAPBridge.ownsSkin(s.id)) IAPBridge.buySkin(s.id, 0); });
+  }
+};
+
+function applyEquippedSkin(){
+  const equipped = IAPBridge.getEquippedSkin();
+  const skin = SKINS.find(s=>s.id===equipped) || SKINS[0];
+  const canvasEl = document.getElementById('game');
+  if(canvasEl) canvasEl.style.filter = skin.filter;
+}
+
+function renderShop(){
+  document.getElementById('gemCountDisplay').textContent = IAPBridge.getGems();
+  const grid = document.getElementById('skinGrid');
+  grid.innerHTML='';
+  SKINS.forEach(s=>{
+    const owned = IAPBridge.ownsSkin(s.id) || s.price===0;
+    const equipped = IAPBridge.getEquippedSkin()===s.id;
+    const card = document.createElement('div');
+    card.className = 'skinCard' + (owned?' owned':'') + (equipped?' equipped':'');
+    card.innerHTML = `<div class="swatch" style="background:#7fb8d9;filter:${s.filter}"></div><div class="label">${s.label}</div><div class="price">${owned?(equipped?'Equipped':'Owned — tap to equip'):'💎 '+s.price}</div>`;
+    card.addEventListener('click', ()=>{
+      if(owned){ IAPBridge.equipSkin(s.id); applyEquippedSkin(); renderShop(); }
+      else { if(IAPBridge.buySkin(s.id, s.price)){ IAPBridge.equipSkin(s.id); applyEquippedSkin(); } renderShop(); }
+    });
+    grid.appendChild(card);
+  });
+}
+document.getElementById('shopBtn').addEventListener('click', ()=>{ renderShop(); document.getElementById('shopOverlay').classList.add('open'); });
+document.getElementById('closeShopBtn').addEventListener('click', ()=>{ document.getElementById('shopOverlay').classList.remove('open'); });
+document.getElementById('removeAdsBtn').addEventListener('click', ()=> IAPBridge.purchaseRemoveAds());
+document.getElementById('familyPassBtn').addEventListener('click', ()=>{ IAPBridge.purchaseFamilyPass(); renderShop(); });
+applyEquippedSkin();
+
+
+/* =========================================================
+   OCEAN DIAMOND HUNT — CAGF Game 15
+   MECHANIC: Top-down maze with free (non-grid-locked) movement
+   through generated corridors, plus directional current zones
+   that push the player off their intended path. Distinct from
+   Candy Land Dash's grid-stepping maze and Kraken's Reef's
+   open-water swim — this combines maze structure with continuous
+   physics.
+   Vanilla JS + Canvas, single file, no external assets.
+   ========================================================= */
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const COLS=11, ROWS=6, CELL=Math.floor(Math.min(W/COLS,(H-20)/ROWS));
+const OFFX=(W-COLS*CELL)/2, OFFY=(H-ROWS*CELL)/2;
+const WALL_T=10;
+
+let state='start', frame=0, coins=0, lives=3, level=1;
+const MAX_LEVEL=10;
+let invincibleTimer=0, bossActive=false, targetCount=0;
+
+const keys={};
+window.addEventListener('keydown', e=>{ keys[e.code]=true; if(e.code==='KeyP') togglePause(); });
+window.addEventListener('keyup', e=> keys[e.code]=false);
+function bindTouch(id){ document.getElementById(id).addEventListener('touchstart', e=>{e.preventDefault(); keys['t'+id]=true;}); document.getElementById(id).addEventListener('touchend', e=>{e.preventDefault(); keys['t'+id]=false;}); }
+['btnUp','btnDown','btnLeft','btnRight'].forEach(bindTouch);
+
+// ---------- Player: Coral ----------
+// Traits: seafoam-green wetsuit, coral-flower hairclip, current-resist kick ability
+const player = { x:0, y:0, vx:0, vy:0, r:14, state:'idle', facing:1 };
+const ACCEL=0.4, MAX_SPEED=3.6, DRAG=0.9;
+
+// ---------- Maze generation (recursive backtracker, walls as line segments) ----------
+let grid=[], wallRects=[], currents=[];
+function generateMaze(){
+  grid=[];
+  for(let y=0;y<ROWS;y++){ const row=[]; for(let x=0;x<COLS;x++) row.push({N:true,S:true,E:true,W:true,visited:false}); grid.push(row); }
+  const stack=[{x:0,y:0}]; grid[0][0].visited=true;
+  while(stack.length){
+    const cur=stack[stack.length-1]; const dirs=[];
+    if(cur.y>0 && !grid[cur.y-1][cur.x].visited) dirs.push('N');
+    if(cur.y<ROWS-1 && !grid[cur.y+1][cur.x].visited) dirs.push('S');
+    if(cur.x>0 && !grid[cur.y][cur.x-1].visited) dirs.push('W');
+    if(cur.x<COLS-1 && !grid[cur.y][cur.x+1].visited) dirs.push('E');
+    if(!dirs.length){ stack.pop(); continue; }
+    const d=dirs[Math.floor(Math.random()*dirs.length)]; let nx=cur.x, ny=cur.y;
+    if(d==='N'){ grid[cur.y][cur.x].N=false; ny--; grid[ny][nx].S=false; }
+    if(d==='S'){ grid[cur.y][cur.x].S=false; ny++; grid[ny][nx].N=false; }
+    if(d==='E'){ grid[cur.y][cur.x].E=false; nx++; grid[ny][nx].W=false; }
+    if(d==='W'){ grid[cur.y][cur.x].W=false; nx--; grid[ny][nx].E=false; }
+    grid[ny][nx].visited=true; stack.push({x:nx,y:ny});
+  }
+  for(let i=0;i<Math.floor(COLS*ROWS*0.1);i++){
+    const rx=1+Math.floor(Math.random()*(COLS-2)), ry=1+Math.floor(Math.random()*(ROWS-2));
+    const d=['N','S','E','W'][Math.floor(Math.random()*4)];
+    if(d==='N'&&ry>0){ grid[ry][rx].N=false; grid[ry-1][rx].S=false; }
+    if(d==='S'&&ry<ROWS-1){ grid[ry][rx].S=false; grid[ry+1][rx].N=false; }
+    if(d==='E'&&rx<COLS-1){ grid[ry][rx].E=false; grid[ry][rx+1].W=false; }
+    if(d==='W'&&rx>0){ grid[ry][rx].W=false; grid[ry][rx-1].E=false; }
+  }
+  // build wall rects for continuous collision
+  wallRects=[];
+  wallRects.push({x:OFFX-WALL_T/2,y:OFFY-WALL_T/2,w:COLS*CELL+WALL_T,h:WALL_T});
+  wallRects.push({x:OFFX-WALL_T/2,y:OFFY+ROWS*CELL-WALL_T/2,w:COLS*CELL+WALL_T,h:WALL_T});
+  wallRects.push({x:OFFX-WALL_T/2,y:OFFY-WALL_T/2,w:WALL_T,h:ROWS*CELL+WALL_T});
+  wallRects.push({x:OFFX+COLS*CELL-WALL_T/2,y:OFFY-WALL_T/2,w:WALL_T,h:ROWS*CELL+WALL_T});
+  for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++){
+    const cell=grid[y][x], px=OFFX+x*CELL, py=OFFY+y*CELL;
+    if(cell.S && y<ROWS-1) wallRects.push({x:px-WALL_T/2,y:py+CELL-WALL_T/2,w:CELL+WALL_T,h:WALL_T});
+    if(cell.E && x<COLS-1) wallRects.push({x:px+CELL-WALL_T/2,y:py-WALL_T/2,w:WALL_T,h:CELL+WALL_T});
+  }
+}
+
+// ---------- Currents, diamonds, jellyfish ----------
+let diamonds=[], jellies=[];
+function populateLevel(lv){
+  diamonds=[]; jellies=[]; currents=[];
+  const cells=[];
+  for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++) if(!(x===0&&y===0)) cells.push({x,y});
+  for(let i=cells.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [cells[i],cells[j]]=[cells[j],cells[i]]; }
+  const diamondTotal = Math.min(cells.length, 6+Math.floor(lv/1.5));
+  targetCount = diamondTotal;
+  for(let i=0;i<diamondTotal;i++){
+    const c=cells[i];
+    diamonds.push({x:OFFX+c.x*CELL+CELL/2, y:OFFY+c.y*CELL+CELL/2, taken:false});
+  }
+  const currentCount = 2+Math.min(4,Math.floor(lv/2));
+  for(let i=0;i<currentCount;i++){
+    const c=cells[diamondTotal+i] || cells[0];
+    const dirs=[{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}];
+    const dir=dirs[Math.floor(Math.random()*4)];
+    currents.push({x:OFFX+c.x*CELL, y:OFFY+c.y*CELL, w:CELL, h:CELL, fx:dir.x*0.18, fy:dir.y*0.18});
+  }
+  const jellyCount = Math.min(4,1+Math.floor(lv/2));
+  for(let i=0;i<jellyCount;i++){
+    const c=cells[diamondTotal+currentCount+i] || cells[1];
+    jellies.push({x:OFFX+c.x*CELL+CELL/2, y:OFFY+c.y*CELL+CELL/2, vx:(Math.random()-0.5)*1.2, vy:(Math.random()-0.5)*1.2, r:13});
+  }
+  updateHUD();
+}
+
+// ---------- Boss: Kraken (blocks exit corridor) ----------
+let boss=null;
+function spawnBoss(finalBoss){
+  boss = { x:OFFX+COLS*CELL-CELL/2, y:OFFY+ROWS*CELL-CELL/2, r:50, hp:finalBoss?3:2, maxHp:finalBoss?3:2, bumpCooldown:0, final:finalBoss };
+  bossActive=true;
+}
+function updateBoss(){
+  if(!boss) return;
+  if(boss.bumpCooldown>0) boss.bumpCooldown--;
+  const dist=Math.hypot(boss.x-player.x, boss.y-player.y);
+  if(dist<boss.r+player.r && boss.bumpCooldown<=0){
+    boss.hp--; boss.bumpCooldown=45; invincibleTimer=60; player.vx*=-1.5; player.vy*=-1.5;
+    if(boss.hp<=0){ bossActive=false; const wasFinal=boss.final; boss=null; if(wasFinal) triggerWin(); else advanceLevel(); }
+    else hurtPlayer();
+  }
+}
+
+function hurtPlayer(){ if(invincibleTimer>0) return; lives--; invincibleTimer=90; updateHUD(); if(lives<=0) triggerGameOver(); }
+function updateHUD(){
+  document.getElementById('coinCount').textContent=coins;
+  document.getElementById('targetCount').textContent=targetCount;
+  document.getElementById('levelNum').textContent=level;
+  const heartsEl=document.getElementById('hearts'); heartsEl.innerHTML='';
+  for(let i=0;i<3;i++){ const s=document.createElement('span'); s.textContent = i<lives?'❤️':'🤍'; heartsEl.appendChild(s); }
+}
+function advanceLevel(){
+  level++;
+  if(level>MAX_LEVEL){ triggerWin(); return; }
+  generateMaze(); populateLevel(level);
+  player.x=OFFX+CELL/2; player.y=OFFY+CELL/2; player.vx=0; player.vy=0;
+  updateHUD();
+}
+
+function circleRectCollide(cx,cy,r,rect){
+  const closestX = Math.max(rect.x, Math.min(cx, rect.x+rect.w));
+  const closestY = Math.max(rect.y, Math.min(cy, rect.y+rect.h));
+  const dx=cx-closestX, dy=cy-closestY;
+  return (dx*dx+dy*dy) < r*r;
+}
+
+function drawMaze(){
+  ctx.fillStyle='rgba(255,255,255,.15)';
+  currents.forEach(c=>{
+    ctx.fillRect(c.x,c.y,c.w,c.h);
+    ctx.save(); ctx.strokeStyle='rgba(255,255,255,.4)'; ctx.lineWidth=2;
+    const cx=c.x+c.w/2, cy=c.y+c.h/2, ang=Math.atan2(c.fy,c.fx);
+    ctx.translate(cx,cy); ctx.rotate(ang);
+    ctx.beginPath(); ctx.moveTo(-10,0); ctx.lineTo(10,0); ctx.lineTo(4,-6); ctx.moveTo(10,0); ctx.lineTo(4,6); ctx.stroke();
+    ctx.restore();
+  });
+  ctx.fillStyle='#023a4d';
+  wallRects.forEach(w=> ctx.fillRect(w.x,w.y,w.w,w.h));
+}
+function drawPlayer(){
+  ctx.save();
+  if(invincibleTimer>0 && Math.floor(frame/4)%2===0) ctx.globalAlpha=0.4;
+  ctx.translate(player.x,player.y); ctx.scale(player.facing,1);
+  ctx.fillStyle='#4dd0c4'; ctx.beginPath(); ctx.arc(0,0,player.r,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#ff8fd4'; ctx.beginPath(); ctx.arc(-4,-8,3,0,Math.PI*2); ctx.fill(); // hairclip
+  ctx.fillStyle='#023a4d'; ctx.beginPath(); ctx.arc(4,-2,2,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+function drawDiamond(d){
+  if(d.taken) return;
+  ctx.save(); ctx.fillStyle='#66e0ff';
+  ctx.beginPath(); ctx.moveTo(d.x,d.y-9); ctx.lineTo(d.x+8,d.y); ctx.lineTo(d.x,d.y+9); ctx.lineTo(d.x-8,d.y); ctx.fill();
+  ctx.restore();
+}
+function drawJelly(j){
+  ctx.save(); ctx.fillStyle='rgba(255,140,220,.8)';
+  ctx.beginPath(); ctx.arc(j.x,j.y,j.r,Math.PI,0); ctx.fill();
+  for(let i=0;i<3;i++){ ctx.strokeStyle='rgba(255,140,220,.6)'; ctx.beginPath(); ctx.moveTo(j.x-8+i*8,j.y); ctx.lineTo(j.x-8+i*8,j.y+12); ctx.stroke(); }
+  ctx.restore();
+}
+function drawBoss(){
+  if(!boss) return; ctx.save();
+  ctx.fillStyle='#3a1a5c'; ctx.beginPath(); ctx.arc(boss.x,boss.y,boss.r,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#ffcc00'; ctx.beginPath(); ctx.arc(boss.x-20,boss.y-12,7,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(boss.x+20,boss.y-12,7,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#000'; ctx.fillRect(boss.x-30,boss.y-boss.r-16,60,8);
+  ctx.fillStyle='#e00'; ctx.fillRect(boss.x-30,boss.y-boss.r-16,60*(boss.hp/boss.maxHp),8);
+  ctx.restore();
+}
+
+function update(){
+  frame++;
+  if(invincibleTimer>0) invincibleTimer--;
+
+  let ax=0, ay=0;
+  if(keys['ArrowLeft']||keys['KeyA']||keys['tbtnLeft']){ ax-=ACCEL; player.facing=-1; }
+  if(keys['ArrowRight']||keys['KeyD']||keys['tbtnRight']){ ax+=ACCEL; player.facing=1; }
+  if(keys['ArrowUp']||keys['KeyW']||keys['tbtnUp']) ay-=ACCEL;
+  if(keys['ArrowDown']||keys['KeyS']||keys['tbtnDown']) ay+=ACCEL;
+
+  currents.forEach(c=>{
+    if(player.x>c.x&&player.x<c.x+c.w&&player.y>c.y&&player.y<c.y+c.h){ ax+=c.fx; ay+=c.fy; }
+  });
+
+  player.vx = Math.max(-MAX_SPEED,Math.min(MAX_SPEED,player.vx+ax));
+  player.vy = Math.max(-MAX_SPEED,Math.min(MAX_SPEED,player.vy+ay));
+  player.vx*=DRAG; player.vy*=DRAG;
+
+  const nx = player.x+player.vx, ny=player.y+player.vy;
+  let blockedX=false, blockedY=false;
+  wallRects.forEach(w=>{ if(circleRectCollide(nx,player.y,player.r,w)) blockedX=true; });
+  wallRects.forEach(w=>{ if(circleRectCollide(player.x,ny,player.r,w)) blockedY=true; });
+  if(!blockedX) player.x=nx; else player.vx=0;
+  if(!blockedY) player.y=ny; else player.vy=0;
+
+  if(bossActive) updateBoss();
+
+  jellies.forEach(j=>{
+    j.x+=j.vx; j.y+=j.vy;
+    wallRects.forEach(w=>{ if(circleRectCollide(j.x,j.y,j.r,w)){ j.vx*=-1; j.vy*=-1; j.x-=j.vx*2; j.y-=j.vy*2; } });
+    const dist=Math.hypot(j.x-player.x,j.y-player.y);
+    if(dist<j.r+player.r && invincibleTimer<=0) hurtPlayer();
+  });
+
+  diamonds.forEach(d=>{
+    if(!d.taken){
+      const dist=Math.hypot(d.x-player.x,d.y-player.y);
+      if(dist<player.r+10){ d.taken=true; coins++; targetCount--; updateHUD(); }
+    }
+  });
+
+  if(!bossActive && targetCount<=0){
+    if(level===5 || level===MAX_LEVEL) spawnBoss(level===MAX_LEVEL); else advanceLevel();
+  }
+}
+
+function render(){
+  ctx.fillStyle='#0b6e8f'; ctx.fillRect(0,0,W,H);
+  drawMaze();
+  diamonds.forEach(drawDiamond);
+  jellies.forEach(drawJelly);
+  if(bossActive) drawBoss();
+  drawPlayer();
+}
+function loop(){ if(state==='playing'){ update(); render(); } requestAnimationFrame(loop); }
+
+function triggerGameOver(){
+  IAPBridge.addGems(Math.floor((typeof coins!=='undefined'?coins:0)/5)+1); AdBridge.showInterstitial(); state='gameover'; document.getElementById('gameOverScore').textContent=`Diamonds collected: ${coins} — Reached Level ${level}`; document.getElementById('gameOverOverlay').classList.remove('hidden'); }
+function triggerWin(){
+  IAPBridge.addGems(Math.floor((typeof coins!=='undefined'?coins:0)/5)+5); AdBridge.showInterstitial(); state='win'; document.getElementById('winScore').textContent=`Final Score: ${coins} diamonds!`; document.getElementById('winOverlay').classList.remove('hidden'); }
+function resetGame(){
+  coins=0; lives=3; level=1; frame=0; boss=null; bossActive=false; invincibleTimer=0;
+  generateMaze(); populateLevel(level);
+  player.x=OFFX+CELL/2; player.y=OFFY+CELL/2; player.vx=0; player.vy=0;
+  updateHUD();
+}
+function togglePause(){
+  if(state==='playing'){ state='paused'; document.getElementById('pauseOverlay').classList.remove('hidden'); }
+  else if(state==='paused'){ state='playing'; document.getElementById('pauseOverlay').classList.add('hidden'); }
+}
+document.getElementById('startBtn').addEventListener('click', ()=>{ document.getElementById('startOverlay').classList.add('hidden'); resetGame(); state='playing'; });
+document.getElementById('pauseBtn').addEventListener('click', togglePause);
+document.getElementById('resumeBtn').addEventListener('click', togglePause);
+document.getElementById('retryBtn').addEventListener('click', ()=>{ document.getElementById('gameOverOverlay').classList.add('hidden'); resetGame(); state='playing'; });
+document.getElementById('playAgainBtn').addEventListener('click', ()=>{ document.getElementById('winOverlay').classList.add('hidden'); resetGame(); state='playing'; });
+generateMaze(); populateLevel(level);
+updateHUD();
+loop();
+</script>
+</body>
+</html>

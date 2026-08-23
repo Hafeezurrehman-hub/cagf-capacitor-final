@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>Dino Valley Sprint</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; }
+  html, body { height:100%; overflow:hidden; background:#2f3a1a; font-family:'Trebuchet MS', Arial, sans-serif; }
+  #gameContainer { position:relative; width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
+  canvas { display:block; background:#9fd6e8; max-width:100%; max-height:100%; touch-action:none; border:4px solid #3a4a1a; box-shadow:0 0 20px rgba(0,0,0,.5); }
+  #hud { position:absolute; top:10px; left:10px; right:10px; display:flex; justify-content:space-between; align-items:flex-start; pointer-events:none; z-index:5; }
+  .hud-box { background:rgba(0,0,0,.5); color:#fff; padding:6px 12px; border-radius:10px; font-weight:bold; font-size:16px; display:flex; gap:10px; align-items:center; }
+  #hearts { display:flex; gap:4px; }
+  #pauseBtn { pointer-events:auto; background:rgba(0,0,0,.5); color:#fff; border:none; border-radius:10px; width:40px; height:40px; font-size:18px; cursor:pointer; }
+  .overlay { position:absolute; inset:0; background:rgba(0,0,0,.75); display:flex; flex-direction:column; align-items:center; justify-content:center; color:#fff; text-align:center; z-index:20; }
+  .overlay.hidden { display:none; }
+  .overlay h1 { font-size:32px; margin-bottom:10px; color:#a8e063; text-shadow:2px 2px 0 #000; }
+  .overlay p { font-size:16px; margin-bottom:16px; }
+  .btn { background:#a8e063; border:none; color:#2f3a1a; font-weight:bold; padding:12px 26px; border-radius:30px; font-size:16px; cursor:pointer; margin:6px; box-shadow:0 4px 0 #6a9a2a; }
+  .btn:active { transform:translateY(3px); box-shadow:0 1px 0 #6a9a2a; }
+  #touchControls { position:absolute; bottom:60px; left:0; right:0; display:flex; justify-content:space-between; padding:0 16px; z-index:5; }
+  .touchBtn { width:70px; height:70px; border-radius:50%; background:rgba(255,255,255,.25); border:3px solid rgba(255,255,255,.5); color:#fff; font-size:26px; display:flex; align-items:center; justify-content:center; }
+  #adBannerBottom { position:absolute; bottom:0; left:0; right:0; height:50px; background:rgba(0,0,0,.15); display:flex; align-items:center; justify-content:center; color:rgba(255,255,255,.35); font-size:11px; z-index:3; pointer-events:none; border-top:1px solid rgba(255,255,255,.1); }
+
+  #shopBtn { position:absolute; top:10px; left:50%; transform:translateX(-50%); pointer-events:auto; background:rgba(0,0,0,.5); color:#ffd700; border:none; border-radius:10px; padding:6px 14px; font-size:14px; font-weight:bold; cursor:pointer; z-index:6; }
+  #shopOverlay { position:absolute; inset:0; background:rgba(0,0,0,.88); display:none; flex-direction:column; align-items:center; justify-content:center; color:#fff; text-align:center; z-index:30; padding:20px; }
+  #shopOverlay.open { display:flex; }
+  #shopOverlay h2 { color:#ffd700; margin-bottom:6px; }
+  #shopOverlay .gemCount { font-size:16px; margin-bottom:16px; color:#7fffd4; }
+  #shopOverlay .skinGrid { display:grid; grid-template-columns:1fr 1fr; gap:10px; max-width:420px; margin-bottom:16px; }
+  #shopOverlay .skinCard { background:rgba(255,255,255,.08); border-radius:12px; padding:10px; border:2px solid transparent; cursor:pointer; }
+  #shopOverlay .skinCard.owned { border-color:#4caf50; }
+  #shopOverlay .skinCard.equipped { border-color:#ffd700; }
+  #shopOverlay .skinCard .swatch { width:100%; height:40px; border-radius:8px; margin-bottom:6px; }
+  #shopOverlay .skinCard .label { font-size:12px; }
+  #shopOverlay .skinCard .price { font-size:11px; color:#ffd700; }
+  #shopOverlay .iapRow { display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; justify-content:center; }
+  #shopOverlay .iapBtn { background:#ffd700; color:#1a1a2e; border:none; border-radius:20px; padding:10px 18px; font-weight:bold; font-size:13px; cursor:pointer; }
+  #shopOverlay .closeBtn { background:rgba(255,255,255,.15); color:#fff; border:none; border-radius:20px; padding:10px 24px; font-weight:bold; cursor:pointer; }
+</style>
+</head>
+<body>
+<div id="gameContainer">
+  <div id="adBannerBottom">AdMob Banner Placeholder — 320x50 (reserved by native app shell)</div>
+  <button id="shopBtn">🛍️ Shop</button>
+  <div id="shopOverlay"><h2>CAGF Shop</h2><div class="gemCount">💎 <span id="gemCountDisplay">0</span> Gems</div><div class="skinGrid" id="skinGrid"></div><div class="iapRow"><button class="iapBtn" id="removeAdsBtn">Remove Ads</button><button class="iapBtn" id="familyPassBtn">Family Pass (All Skins + No Ads)</button></div><button class="closeBtn" id="closeShopBtn">Close</button></div>
+
+  <canvas id="game" width="960" height="540"></canvas>
+  <div id="hud">
+    <div style="display:flex; gap:8px;">
+      <div class="hud-box">🥚 <span id="coinCount">0</span></div>
+      <div class="hud-box">Lvl <span id="levelNum">1</span></div>
+    </div>
+    <div class="hud-box"><div id="hearts"></div></div>
+    <button id="pauseBtn">⏸</button>
+  </div>
+  <div id="touchControls">
+    <div class="touchBtn" id="btnDuck">⬇</div>
+    <div class="touchBtn" id="btnJump">⬆</div>
+  </div>
+  <div id="startOverlay" class="overlay">
+    <h1>Dino Valley Sprint</h1>
+    <p>Rex the young Dinosaur sprints through the valley collecting dino eggs<br>before the great Dragon catches up and reclaims its territory!<br><br>
+    <strong>Space / Tap Right</strong> = Jump &nbsp;|&nbsp; <strong>Down / Tap Left</strong> = Duck</p>
+    <button class="btn" id="startBtn">Start Sprint</button>
+  </div>
+  <div id="pauseOverlay" class="overlay hidden"><h1>Paused</h1><button class="btn" id="resumeBtn">Resume</button></div>
+  <div id="gameOverOverlay" class="overlay hidden"><h1>Caught by the Dragon!</h1><p id="gameOverScore"></p><button class="btn" id="retryBtn">Try Again</button></div>
+  <div id="winOverlay" class="overlay hidden"><h1>🏆 Valley Conquered! 🏆</h1><p id="winScore"></p><button class="btn" id="playAgainBtn">Play Again</button></div>
+</div>
+
+<script>
+/* ---------- AdMob Bridge (stub) ---------- */
+const AdBridge = {
+  showInterstitial(){
+    if(window.AndroidAds && window.AndroidAds.showInterstitial) window.AndroidAds.showInterstitial();
+    else if(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.iosAds) window.webkit.messageHandlers.iosAds.postMessage('interstitial');
+    else console.log('[AdMob] interstitial placeholder (no native bridge detected)');
+  },
+  showRewarded(onReward){
+    if(window.AndroidAds && window.AndroidAds.showRewarded) window.AndroidAds.showRewarded();
+    else if(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.iosAds) window.webkit.messageHandlers.iosAds.postMessage('rewarded');
+    else { console.log('[AdMob] rewarded placeholder (no native bridge detected)'); if(onReward) onReward(); }
+  }
+};
+
+/* ---------- CAGF Shop / Cosmetic IAP System (shared across all 20 games) ----------
+   Cosmetic-only skins recolor the game canvas via CSS filter — no gameplay
+   advantage, so this stays compliant with Google Play / Apple kids-app policy
+   (no pay-to-win, no chance-based loot boxes). Gems are earned free through
+   play AND purchasable. Native wrapper should implement window.IAPBridge with
+   real store purchase flows (Google Play Billing / Apple StoreKit); this stub
+   falls back to localStorage simulation for browser/PC testing.
+   Skins apply a CSS filter to the <canvas id="game"> element directly, so this
+   works identically in every CAGF game without touching draw code. */
+const SKINS = [
+  { id:'default', label:'Classic', price:0, filter:'none' },
+  { id:'ninjaRed', label:'Ninja Red', price:20, filter:'hue-rotate(320deg) saturate(1.4)' },
+  { id:'oceanBlue', label:'Ocean Blue', price:20, filter:'hue-rotate(180deg) saturate(1.3)' },
+  { id:'toxicGreen', label:'Toxic Green', price:25, filter:'hue-rotate(90deg) saturate(1.5)' },
+  { id:'royalGold', label:'Royal Gold', price:30, filter:'hue-rotate(40deg) saturate(1.6) brightness(1.1)' }
+];
+
+const IAPBridge = {
+  getGems(){
+    if(window.CAGFNative && window.CAGFNative.getGems) return window.CAGFNative.getGems();
+    return parseInt(localStorage.getItem('cagf_gems')||'0',10);
+  },
+  setGems(v){
+    if(window.CAGFNative && window.CAGFNative.setGems){ window.CAGFNative.setGems(v); return; }
+    localStorage.setItem('cagf_gems', String(v));
+  },
+  addGems(n){ this.setGems(this.getGems()+n); },
+  ownsSkin(id){
+    if(window.CAGFNative && window.CAGFNative.ownsSkin) return window.CAGFNative.ownsSkin(id);
+    const owned = JSON.parse(localStorage.getItem('cagf_owned_skins')||'["default"]');
+    return owned.includes(id);
+  },
+  buySkin(id, price){
+    const gems=this.getGems();
+    if(gems<price) return false;
+    this.setGems(gems-price);
+    if(window.CAGFNative && window.CAGFNative.grantSkin){ window.CAGFNative.grantSkin(id); }
+    else { const owned=JSON.parse(localStorage.getItem('cagf_owned_skins')||'["default"]'); owned.push(id); localStorage.setItem('cagf_owned_skins',JSON.stringify(owned)); }
+    return true;
+  },
+  getEquippedSkin(){
+    if(window.CAGFNative && window.CAGFNative.getEquippedSkin) return window.CAGFNative.getEquippedSkin();
+    return localStorage.getItem('cagf_equipped_skin')||'default';
+  },
+  equipSkin(id){
+    if(window.CAGFNative && window.CAGFNative.equipSkin){ window.CAGFNative.equipSkin(id); return; }
+    localStorage.setItem('cagf_equipped_skin', id);
+  },
+  hasFamilyPass(){
+    if(window.CAGFNative && window.CAGFNative.hasFamilyPass) return window.CAGFNative.hasFamilyPass();
+    return localStorage.getItem('cagf_family_pass')==='1';
+  },
+  purchaseRemoveAds(){
+    // Real IAP flow implemented natively (Google Play Billing / StoreKit).
+    if(window.CAGFNative && window.CAGFNative.purchaseRemoveAds){ window.CAGFNative.purchaseRemoveAds(); return; }
+    console.log('[IAP] Remove Ads purchase placeholder (no native bridge)');
+    localStorage.setItem('cagf_no_ads','1');
+  },
+  purchaseFamilyPass(){
+    if(window.CAGFNative && window.CAGFNative.purchaseFamilyPass){ window.CAGFNative.purchaseFamilyPass(); return; }
+    console.log('[IAP] Family Pass purchase placeholder (no native bridge)');
+    localStorage.setItem('cagf_family_pass','1');
+    SKINS.forEach(s=>{ if(!IAPBridge.ownsSkin(s.id)) IAPBridge.buySkin(s.id, 0); });
+  }
+};
+
+function applyEquippedSkin(){
+  const equipped = IAPBridge.getEquippedSkin();
+  const skin = SKINS.find(s=>s.id===equipped) || SKINS[0];
+  const canvasEl = document.getElementById('game');
+  if(canvasEl) canvasEl.style.filter = skin.filter;
+}
+
+function renderShop(){
+  document.getElementById('gemCountDisplay').textContent = IAPBridge.getGems();
+  const grid = document.getElementById('skinGrid');
+  grid.innerHTML='';
+  SKINS.forEach(s=>{
+    const owned = IAPBridge.ownsSkin(s.id) || s.price===0;
+    const equipped = IAPBridge.getEquippedSkin()===s.id;
+    const card = document.createElement('div');
+    card.className = 'skinCard' + (owned?' owned':'') + (equipped?' equipped':'');
+    card.innerHTML = `<div class="swatch" style="background:#7fb8d9;filter:${s.filter}"></div><div class="label">${s.label}</div><div class="price">${owned?(equipped?'Equipped':'Owned — tap to equip'):'💎 '+s.price}</div>`;
+    card.addEventListener('click', ()=>{
+      if(owned){ IAPBridge.equipSkin(s.id); applyEquippedSkin(); renderShop(); }
+      else { if(IAPBridge.buySkin(s.id, s.price)){ IAPBridge.equipSkin(s.id); applyEquippedSkin(); } renderShop(); }
+    });
+    grid.appendChild(card);
+  });
+}
+document.getElementById('shopBtn').addEventListener('click', ()=>{ renderShop(); document.getElementById('shopOverlay').classList.add('open'); });
+document.getElementById('closeShopBtn').addEventListener('click', ()=>{ document.getElementById('shopOverlay').classList.remove('open'); });
+document.getElementById('removeAdsBtn').addEventListener('click', ()=> IAPBridge.purchaseRemoveAds());
+document.getElementById('familyPassBtn').addEventListener('click', ()=>{ IAPBridge.purchaseFamilyPass(); renderShop(); });
+applyEquippedSkin();
+
+
+/* =========================================================
+   DINO VALLEY SPRINT — CAGF Game 10
+   MECHANIC: Classic endless runner (auto-scroll ground-based)
+   — deliberately reused per roster plan as the "familiar" baseline
+   variant, distinguished by character/theme/boss.
+   Vanilla JS + Canvas, single file, no external assets.
+   ========================================================= */
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const GROUND_Y = H - 90;
+const PALETTE = { sky:'#9fd6e8', farHill:'#6a9a4a', midTree:'#4a7a3a', ground:'#5a4a2a', groundTop:'#7a8e3a' };
+
+let state='start', frame=0, coins=0, lives=3, level=1;
+const MAX_LEVEL=10;
+let speed=5, distanceInLevel=0;
+const LEVEL_LENGTH=2600;
+let invincibleTimer=0, shieldActive=false, bossActive=false, speedBoostTimer=0;
+
+const keys={};
+window.addEventListener('keydown', e=>{ keys[e.code]=true; if(e.code==='Space'||e.code==='ArrowUp') doJump(); if(e.code==='KeyP') togglePause(); });
+window.addEventListener('keyup', e=> keys[e.code]=false);
+document.getElementById('btnJump').addEventListener('touchstart', e=>{e.preventDefault(); doJump();});
+document.getElementById('btnDuck').addEventListener('touchstart', e=>{e.preventDefault(); player.ducking=true;});
+document.getElementById('btnDuck').addEventListener('touchend', e=>{e.preventDefault(); player.ducking=false;});
+
+// ---------- Player: Rex the Dinosaur ----------
+// Traits: green scales, orange belly, tail-whip flourish on jump
+const player = { x:120, y:GROUND_Y-50, w:48, h:50, vy:0, jumping:false, ducking:false, state:'idle', hurtTimer:0 };
+const GRAVITY=0.9, JUMP_FORCE=-16.5;
+function doJump(){ if(state!=='playing') return; if(!player.jumping){ player.vy=JUMP_FORCE; player.jumping=true; player.state='jump'; } }
+
+// ---------- Obstacles (Jungle theme, different set from Game 1): Fire, Rolling Rocks, Falling Platforms, Skeletons ----------
+let obstacles=[];
+const OBSTACLE_TYPES=['fire','rock','fallplat','skeleton'];
+function spawnObstacle(){
+  const type=OBSTACLE_TYPES[Math.floor(Math.random()*(level<3?2:OBSTACLE_TYPES.length))];
+  let ob={type,x:W+40,hit:false};
+  if(type==='fire'){ ob.y=GROUND_Y-36; ob.w=28; ob.h=36; ob.vx=-speed; }
+  if(type==='rock'){ ob.y=GROUND_Y-30; ob.w=34; ob.h=30; ob.vx=-(speed+1); }
+  if(type==='fallplat'){ ob.y=GROUND_Y-150; ob.w=70; ob.h=14; ob.vx=-speed; ob.vy=0; ob.falling=false; ob.timer=40; }
+  if(type==='skeleton'){ ob.y=GROUND_Y-46; ob.w=28; ob.h=46; ob.vx=-speed; }
+  obstacles.push(ob);
+}
+let collectibles=[];
+function spawnCollectible(){
+  const gem=Math.random()<0.2;
+  collectibles.push({x:W+40, y:GROUND_Y-60-Math.random()*100, w:22, h:22, type:gem?'gem':'egg', vx:-speed, taken:false});
+}
+let powerups=[];
+function spawnPowerup(){
+  const type=Math.random()<0.5?'shield':'speed';
+  powerups.push({x:W+40, y:GROUND_Y-70, w:26, h:26, type, vx:-speed, taken:false});
+}
+
+// ---------- Boss: Dragon ----------
+let boss=null;
+function spawnBoss(finalBoss){
+  boss = { x:W-180, y:GROUND_Y-150, w:150, h:150, hp:finalBoss?3:2, maxHp:finalBoss?3:2, attackTimer:0, tell:false, tellTimer:0, projectiles:[], final:finalBoss };
+  bossActive=true;
+}
+function updateBoss(){
+  if(!boss) return;
+  boss.attackTimer++;
+  if(boss.attackTimer>110 && !boss.tell){ boss.tell=true; boss.tellTimer=40; }
+  if(boss.tell){
+    boss.tellTimer--;
+    if(boss.tellTimer<=0){
+      boss.tell=false; boss.attackTimer=0;
+      boss.projectiles.push({x:boss.x, y:boss.y+70, vx:-7, w:20, h:20});
+      if(boss.final && boss.hp<=1) boss.projectiles.push({x:boss.x, y:boss.y+100, vx:-9, w:20, h:20});
+    }
+  }
+  boss.projectiles.forEach(p=>p.x+=p.vx);
+  boss.projectiles = boss.projectiles.filter(p=>p.x>-30);
+  if(rectsOverlap(player,boss) && player.jumping && player.vy>0 && !boss.tell){
+    boss.hp--; player.vy=JUMP_FORCE*0.6;
+    if(boss.hp<=0){ bossActive=false; const wasFinal=boss.final; boss=null; if(wasFinal) triggerWin(); else advanceLevel(); }
+  } else if(rectsOverlap(player,boss) && invincibleTimer<=0 && !shieldActive){ hurtPlayer(); }
+  boss.projectiles.forEach(p=>{ if(invincibleTimer<=0 && !shieldActive && rectsOverlap(player,p)) hurtPlayer(); });
+}
+function rectsOverlap(a,b){ return a.x<b.x+b.w && a.x+a.w>b.x && a.y<b.y+b.h && a.y+a.h>b.y; }
+
+function hurtPlayer(){ if(invincibleTimer>0) return; lives--; player.state='hurt'; player.hurtTimer=40; invincibleTimer=90; updateHUD(); if(lives<=0) triggerGameOver(); }
+function updateHUD(){
+  document.getElementById('coinCount').textContent=coins;
+  document.getElementById('levelNum').textContent=level;
+  const heartsEl=document.getElementById('hearts'); heartsEl.innerHTML='';
+  for(let i=0;i<3;i++){ const s=document.createElement('span'); s.textContent = i<lives?'❤️':'🤍'; heartsEl.appendChild(s); }
+}
+function advanceLevel(){
+  level++; distanceInLevel=0; obstacles=[]; collectibles=[]; powerups=[];
+  speed = 5 + level*0.4;
+  if(level>MAX_LEVEL){ triggerWin(); return; }
+  updateHUD();
+}
+
+let bgOffset1=0, bgOffset2=0;
+function drawBackground(){
+  ctx.fillStyle=PALETTE.sky; ctx.fillRect(0,0,W,H);
+  bgOffset1 -= speed*0.2;
+  ctx.fillStyle=PALETTE.farHill;
+  for(let i=-1;i<4;i++){ const x=(i*300+bgOffset1)%(W+300); ctx.beginPath(); ctx.ellipse(x,GROUND_Y-30,180,90,0,Math.PI,0); ctx.fill(); }
+  bgOffset2 -= speed*0.5;
+  ctx.fillStyle=PALETTE.midTree;
+  for(let i=-1;i<6;i++){ const x=(i*160+bgOffset2)%(W+160); ctx.fillRect(x,GROUND_Y-110,14,110); ctx.beginPath(); ctx.arc(x+7,GROUND_Y-110,40,0,Math.PI*2); ctx.fill(); }
+  ctx.fillStyle=PALETTE.ground; ctx.fillRect(0,GROUND_Y,W,H-GROUND_Y);
+  ctx.fillStyle=PALETTE.groundTop; ctx.fillRect(0,GROUND_Y,W,8);
+}
+function drawPlayer(){
+  const p=player; ctx.save();
+  const flashHurt = p.hurtTimer>0 && Math.floor(frame/4)%2===0;
+  if(flashHurt) ctx.globalAlpha=0.4;
+  let bodyH = p.ducking?p.h*0.6:p.h, by = p.ducking?p.y+p.h*0.4:p.y;
+  ctx.fillStyle='#3a9a4a'; ctx.fillRect(p.x-p.w/2,by,p.w,bodyH); // green scales
+  ctx.fillStyle='#ffb347'; ctx.fillRect(p.x-p.w/4,by+bodyH*0.3,p.w/2,bodyH*0.5); // orange belly
+  ctx.fillStyle='#2a7a3a'; ctx.beginPath(); ctx.moveTo(p.x-p.w/2,by); ctx.lineTo(p.x-p.w/2-6,by-8); ctx.lineTo(p.x-p.w/4,by); ctx.fill(); // head crest
+  ctx.fillStyle='#000'; ctx.fillRect(p.x+6,by+10,4,4);
+  if(p.state==='jump'){ ctx.strokeStyle='#2a7a3a'; ctx.lineWidth=5; ctx.beginPath(); ctx.moveTo(p.x-p.w/2,by+bodyH-6); ctx.lineTo(p.x-p.w/2-16,by+bodyH+4); ctx.stroke(); } // tail whip
+  ctx.restore();
+  if(shieldActive){ ctx.strokeStyle='rgba(100,200,255,.9)'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(p.x,by+bodyH/2,p.w*0.9,0,Math.PI*2); ctx.stroke(); }
+}
+function drawObstacle(o){
+  ctx.save();
+  if(o.type==='fire'){
+    ctx.fillStyle='#FF6B00';
+    ctx.beginPath(); ctx.moveTo(o.x,o.y+o.h); ctx.quadraticCurveTo(o.x-14,o.y+10,o.x,o.y); ctx.quadraticCurveTo(o.x+14,o.y+10,o.x,o.y+o.h); ctx.fill();
+    ctx.fillStyle='#FFD500'; ctx.beginPath(); ctx.moveTo(o.x,o.y+o.h); ctx.quadraticCurveTo(o.x-6,o.y+18,o.x,o.y+8); ctx.quadraticCurveTo(o.x+6,o.y+18,o.x,o.y+o.h); ctx.fill();
+  }
+  if(o.type==='rock'){ ctx.fillStyle='#7a7a7a'; ctx.beginPath(); ctx.arc(o.x,o.y+o.h/2,o.w/2,0,Math.PI*2); ctx.fill(); }
+  if(o.type==='fallplat'){
+    if(!o.falling){ o.timer--; if(o.timer<=0) o.falling=true; }
+    if(o.falling){ o.vy+=0.5; o.y+=o.vy; }
+    ctx.fillStyle= o.falling? '#a05a3a' : '#8a6a4a'; ctx.fillRect(o.x-o.w/2,o.y,o.w,o.h);
+  }
+  if(o.type==='skeleton'){
+    ctx.fillStyle='#e8e0d0';
+    ctx.fillRect(o.x-6,o.y,12,o.h*0.6);
+    ctx.beginPath(); ctx.arc(o.x,o.y-4,10,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#000'; ctx.fillRect(o.x-4,o.y-6,3,3); ctx.fillRect(o.x+1,o.y-6,3,3);
+  }
+  ctx.restore();
+}
+function drawCollectible(c){
+  ctx.save();
+  if(c.type==='egg'){ ctx.fillStyle='#fff8e0'; ctx.beginPath(); ctx.ellipse(c.x,c.y,8,11,0,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#c9a877'; ctx.beginPath(); ctx.arc(c.x-2,c.y-2,2,0,Math.PI*2); ctx.fill(); }
+  else { ctx.fillStyle='#00E5FF'; ctx.beginPath(); ctx.moveTo(c.x,c.y-10); ctx.lineTo(c.x+9,c.y); ctx.lineTo(c.x,c.y+10); ctx.lineTo(c.x-9,c.y); ctx.fill(); }
+  ctx.restore();
+}
+function drawPowerup(p){
+  ctx.save(); ctx.fillStyle=p.type==='shield'?'#66CCFF':'#FF66CC';
+  ctx.beginPath(); ctx.arc(p.x,p.y,13,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#fff'; ctx.font='14px Arial'; ctx.textAlign='center'; ctx.fillText(p.type==='shield'?'🛡':'⚡',p.x,p.y+5);
+  ctx.restore();
+}
+function drawBoss(){
+  if(!boss) return; ctx.save();
+  ctx.fillStyle = boss.tell? '#ff5533' : '#7a2a2a';
+  ctx.beginPath(); ctx.ellipse(boss.x+boss.w/2, boss.y+boss.h/2, boss.w/2, boss.h/2.2, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle='#ffcc00'; ctx.beginPath(); ctx.arc(boss.x+boss.w/2-25,boss.y+boss.h/2-25,7,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(boss.x+boss.w/2+25,boss.y+boss.h/2-25,7,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#4a1a1a'; ctx.beginPath(); ctx.moveTo(boss.x+10,boss.y+10); ctx.lineTo(boss.x-10,boss.y-10); ctx.lineTo(boss.x+30,boss.y+5); ctx.fill(); // wing hint
+  ctx.fillStyle='#000'; ctx.fillRect(boss.x, boss.y-20, boss.w, 10);
+  ctx.fillStyle='#e00'; ctx.fillRect(boss.x, boss.y-20, boss.w*(boss.hp/boss.maxHp), 10);
+  ctx.restore();
+  boss.projectiles.forEach(p=>{ ctx.fillStyle='#FF4500'; ctx.beginPath(); ctx.arc(p.x,p.y,10,0,Math.PI*2); ctx.fill(); });
+}
+
+function update(){
+  frame++;
+  if(player.hurtTimer>0) player.hurtTimer--;
+  if(invincibleTimer>0) invincibleTimer--;
+  if(speedBoostTimer>0){ speedBoostTimer--; if(speedBoostTimer===0) speed=5+level*0.4; }
+
+  player.vy += GRAVITY; player.y += player.vy;
+  if(player.y>=GROUND_Y-player.h){ player.y=GROUND_Y-player.h; player.vy=0; player.jumping=false; if(player.hurtTimer<=0) player.state=player.ducking?'duck':'run'; }
+  player.ducking = keys['ArrowDown']||keys['KeyS']||player.ducking;
+
+  if(!bossActive){
+    distanceInLevel += speed;
+    if(frame % Math.max(30,70-level*3) === 0) spawnObstacle();
+    if(frame % 55 === 0) spawnCollectible();
+    if(frame % 500 === 0) spawnPowerup();
+    if(distanceInLevel >= LEVEL_LENGTH){
+      if(level===5 || level===MAX_LEVEL) spawnBoss(level===MAX_LEVEL); else advanceLevel();
+    }
+  } else updateBoss();
+
+  obstacles.forEach(o=>o.x+=o.vx);
+  obstacles = obstacles.filter(o=>o.x>-60);
+  obstacles.forEach(o=>{
+    const oy = o.type==='fallplat' ? o.y : o.y;
+    if(!o.hit && invincibleTimer<=0 && !shieldActive && rectsOverlap({x:player.x-player.w/2,y:player.y,w:player.w,h:player.ducking?player.h*0.6:player.h},{x:o.x-o.w/2,y:oy,w:o.w,h:o.h})){ o.hit=true; hurtPlayer(); }
+  });
+
+  collectibles.forEach(c=>c.x+=c.vx);
+  collectibles = collectibles.filter(c=>c.x>-40);
+  collectibles.forEach(c=>{
+    if(!c.taken && rectsOverlap({x:player.x-player.w/2,y:player.y,w:player.w,h:player.h},{x:c.x-c.w/2,y:c.y-c.h/2,w:c.w,h:c.h})){ c.taken=true; coins += c.type==='gem'?5:1; updateHUD(); }
+  });
+  collectibles = collectibles.filter(c=>!c.taken);
+
+  powerups.forEach(p=>p.x+=p.vx);
+  powerups = powerups.filter(p=>p.x>-40);
+  powerups.forEach(p=>{
+    if(!p.taken && rectsOverlap({x:player.x-player.w/2,y:player.y,w:player.w,h:player.h},{x:p.x-p.w/2,y:p.y-p.h/2,w:p.w,h:p.h})){
+      p.taken=true;
+      if(p.type==='shield'){ shieldActive=true; setTimeout(()=>shieldActive=false,6000); }
+      if(p.type==='speed'){ speedBoostTimer=300; speed=(5+level*0.4)*1.6; }
+    }
+  });
+  powerups = powerups.filter(p=>!p.taken);
+
+  if(player.hurtTimer<=0 && player.state==='hurt') player.state='run';
+}
+
+function render(){
+  drawBackground();
+  obstacles.forEach(drawObstacle);
+  collectibles.forEach(drawCollectible);
+  powerups.forEach(drawPowerup);
+  if(bossActive) drawBoss();
+  drawPlayer();
+}
+function loop(){ if(state==='playing'){ update(); render(); } requestAnimationFrame(loop); }
+
+function triggerGameOver(){
+  IAPBridge.addGems(Math.floor((typeof coins!=='undefined'?coins:0)/5)+1);
+  AdBridge.showInterstitial();
+  state='gameover'; document.getElementById('gameOverScore').textContent=`Eggs collected: ${coins} — Reached Level ${level}`; document.getElementById('gameOverOverlay').classList.remove('hidden');
+}
+function triggerWin(){
+  IAPBridge.addGems(Math.floor((typeof coins!=='undefined'?coins:0)/5)+5);
+  AdBridge.showInterstitial();
+  state='win'; document.getElementById('winScore').textContent=`Final Score: ${coins} eggs & gems!`; document.getElementById('winOverlay').classList.remove('hidden');
+}
+function resetGame(){
+  coins=0; lives=3; level=1; speed=5; distanceInLevel=0; frame=0;
+  obstacles=[]; collectibles=[]; powerups=[]; boss=null; bossActive=false;
+  player.y=GROUND_Y-50; player.vy=0; player.jumping=false; player.state='run';
+  invincibleTimer=0; shieldActive=false; speedBoostTimer=0;
+  updateHUD();
+}
+function togglePause(){
+  if(state==='playing'){ state='paused'; document.getElementById('pauseOverlay').classList.remove('hidden'); }
+  else if(state==='paused'){ state='playing'; document.getElementById('pauseOverlay').classList.add('hidden'); }
+}
+document.getElementById('startBtn').addEventListener('click', ()=>{ document.getElementById('startOverlay').classList.add('hidden'); resetGame(); state='playing'; });
+document.getElementById('pauseBtn').addEventListener('click', togglePause);
+document.getElementById('resumeBtn').addEventListener('click', togglePause);
+document.getElementById('retryBtn').addEventListener('click', ()=>{ document.getElementById('gameOverOverlay').classList.add('hidden'); resetGame(); state='playing'; });
+document.getElementById('playAgainBtn').addEventListener('click', ()=>{ document.getElementById('winOverlay').classList.add('hidden'); resetGame(); state='playing'; });
+updateHUD();
+loop();
+</script>
+</body>
+</html>

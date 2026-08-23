@@ -1,0 +1,9 @@
+{
+	"appId": "com.sakhashmi.cagf",
+	"appName": "CAGF",
+	"webDir": "www",
+	"android": {
+		"allowMixedContent": false,
+		"webContentsDebuggingEnabled": false
+	}
+}

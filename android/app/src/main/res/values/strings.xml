@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">CAGF</string>
+    <string name="title_activity_main">CAGF</string>
+    <string name="package_name">com.sakhashmi.cagf</string>
+    <string name="custom_url_scheme">com.sakhashmi.cagf</string>
+</resources>

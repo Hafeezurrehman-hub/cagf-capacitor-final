@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>CAGF — Claude AI Game Factory</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; font-family:'Trebuchet MS', Arial, sans-serif; -webkit-tap-highlight-color:transparent; }
+  html, body { background:#0d0d1a; height:100%; overflow-y:auto; }
+  #app { min-height:100vh; background:linear-gradient(160deg,#1a1a3a,#2a1a4a); color:#fff; padding-bottom:30px; }
+  header { padding:22px 18px 14px; text-align:center; }
+  header h1 { font-size:22px; color:#ffd166; text-shadow:2px 2px 0 rgba(0,0,0,.4); }
+  header p { font-size:12px; color:#a89be0; margin-top:4px; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; padding:14px; max-width:520px; margin:0 auto; }
+  .card { background:rgba(255,255,255,.07); border-radius:14px; overflow:hidden; border:1px solid rgba(255,255,255,.1); }
+  .thumb { height:80px; display:flex; align-items:center; justify-content:center; font-size:32px; }
+  .info { padding:8px 10px 10px; }
+  .name { font-size:12px; font-weight:bold; line-height:1.2; margin-bottom:6px; min-height:28px; }
+  .mech { font-size:9px; color:#a89be0; margin-bottom:6px; }
+  .playBtn { width:100%; background:#ffd166; color:#1a1a2e; border:none; border-radius:8px; padding:7px; font-weight:bold; font-size:11px; cursor:pointer; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>🎮 Claude AI Game Factory</h1>
+    <p>20 original games — pick one to play</p>
+  </header>
+  <div class="grid" id="grid"></div>
+</div>
+
+<script>
+// Game registry: filename matches the bundled file in www/games/
+const games = [
+  {file:"jungle-runner-kikos-quest.html", name:"Jungle Runner: Kiko's Quest", mech:"Endless Runner", emoji:"🐵", color:"#2d5e2d,#5a8f3a"},
+  {file:"desert-raider-pirate-girls-gold.html", name:"Desert Raider: Pirate Girl's Gold", mech:"Endless Runner", emoji:"🏴‍☠️", color:"#D2A356,#8B5A2B"},
+  {file:"frost-knight.html", name:"Frost Knight", mech:"Platformer", emoji:"❄️", color:"#6fa8cf,#9fc9e8"},
+  {file:"starbound-alien-alex.html", name:"Starbound: Alien Alex", mech:"Vertical Shooter", emoji:"👽", color:"#2a1a4a,#04041a"},
+  {file:"krakens-reef.html", name:"Kraken's Reef", mech:"Free-Swim & Dodge", emoji:"🐙", color:"#0b6e8f,#023a4d"},
+  {file:"castle-breaker-bot.html", name:"Castle Breaker Bot", mech:"Puzzle-Platformer", emoji:"🤖", color:"#4f4f7a,#16162a"},
+  {file:"temple-of-the-ninja.html", name:"Temple of the Ninja", mech:"Stealth/Timing", emoji:"🥷", color:"#4a3a1e,#1a1408"},
+  {file:"factory-dash.html", name:"Factory Dash", mech:"Conveyor-Belt Runner", emoji:"🏭", color:"#555b66,#2a2e36"},
+  {file:"candy-land-dash.html", name:"Candy Land Dash", mech:"Match/Collect Maze", emoji:"🍬", color:"#ff8fd4,#7a3a8a"},
+  {file:"dino-valley-sprint.html", name:"Dino Valley Sprint", mech:"Endless Runner", emoji:"🦕", color:"#6a9a4a,#4a7a3a"},
+  {file:"volcano-princess-escape.html", name:"Volcano Princess Escape", mech:"Chase/Escape", emoji:"👑", color:"#ff5722,#8B0000"},
+  {file:"penguin-ice-slide.html", name:"Penguin Ice Slide", mech:"Physics Slide", emoji:"🐧", color:"#66ccff,#bcdcee"},
+  {file:"ghost-temple-run.html", name:"Ghost Temple Run", mech:"Light/Shadow Puzzle", emoji:"👻", color:"#2a2a3a,#12121c"},
+  {file:"space-knight-odyssey.html", name:"Space Knight Odyssey", mech:"Zero-G Platformer", emoji:"⚔️", color:"#7fb8d9,#050514"},
+  {file:"ocean-diamond-hunt.html", name:"Ocean Diamond Hunt", mech:"Top-down Maze", emoji:"💎", color:"#66e0ff,#0b6e8f"},
+  {file:"robo-desert-racer.html", name:"Robo Desert Racer", mech:"Vehicle Dodge", emoji:"🚙", color:"#e0b878,#5c3a1a"},
+  {file:"dragons-castle-siege.html", name:"Dragon's Castle Siege", mech:"Tower Defense-lite", emoji:"🐉", color:"#4a4a6e,#16162a"},
+  {file:"candy-factory-chaos.html", name:"Candy Factory Chaos", mech:"Catch/Sort", emoji:"🍭", color:"#ff6f91,#a685e2"},
+  {file:"alien-jungle-escape.html", name:"Alien Jungle Escape", mech:"Metroidvania-lite", emoji:"🌴", color:"#3adb76,#0d2b0d"},
+  {file:"dino-knights-last-stand.html", name:"Grand Finale: Dino Knight's Last Stand", mech:"Boss Rush", emoji:"🏆", color:"#ffd700,#2a0e0e"},
+];
+
+const grid = document.getElementById('grid');
+games.forEach((g,i)=>{
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <div class="thumb" style="background:linear-gradient(135deg,${g.color})">${g.emoji}</div>
+    <div class="info">
+      <div class="name">${i+1}. ${g.name}</div>
+      <div class="mech">${g.mech}</div>
+      <button class="playBtn">▶ Play</button>
+    </div>`;
+  card.querySelector('.playBtn').addEventListener('click', ()=>{
+    // Loads the bundled local game file — works fully offline
+    window.location.href = 'games/' + g.file;
+  });
+  grid.appendChild(card);
+});
+</script>
+</body>
+</html>

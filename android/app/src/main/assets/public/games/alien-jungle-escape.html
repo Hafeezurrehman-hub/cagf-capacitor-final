@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>Alien Jungle Escape</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; }
+  html, body { height:100%; overflow:hidden; background:#0d2b0d; font-family:'Trebuchet MS', Arial, sans-serif; }
+  #gameContainer { position:relative; width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
+  canvas { display:block; background:#1a4a1a; max-width:100%; max-height:100%; touch-action:none; border:4px solid #0a1a0a; box-shadow:0 0 20px rgba(0,0,0,.5); }
+  #hud { position:absolute; top:10px; left:10px; right:10px; display:flex; justify-content:space-between; align-items:flex-start; pointer-events:none; z-index:5; }
+  .hud-box { background:rgba(0,0,0,.5); color:#fff; padding:6px 12px; border-radius:10px; font-weight:bold; font-size:16px; display:flex; gap:10px; align-items:center; }
+  #hearts { display:flex; gap:4px; }
+  #pauseBtn { pointer-events:auto; background:rgba(0,0,0,.5); color:#fff; border:none; border-radius:10px; width:40px; height:40px; font-size:18px; cursor:pointer; }
+  .overlay { position:absolute; inset:0; background:rgba(0,0,0,.8); display:flex; flex-direction:column; align-items:center; justify-content:center; color:#fff; text-align:center; z-index:20; }
+  .overlay.hidden { display:none; }
+  .overlay h1 { font-size:32px; margin-bottom:10px; color:#7fffd4; text-shadow:2px 2px 0 #000; }
+  .overlay p { font-size:16px; margin-bottom:16px; }
+  .btn { background:#7fffd4; border:none; color:#0d2b0d; font-weight:bold; padding:12px 26px; border-radius:30px; font-size:16px; cursor:pointer; margin:6px; box-shadow:0 4px 0 #3fae8c; }
+  .btn:active { transform:translateY(3px); box-shadow:0 1px 0 #3fae8c; }
+  #touchControls { position:absolute; bottom:16px; left:0; right:0; display:flex; justify-content:space-between; padding:0 16px; z-index:5; }
+  .dpad { display:flex; gap:8px; }
+  .touchBtn { width:60px; height:60px; border-radius:50%; background:rgba(255,255,255,.2); border:3px solid rgba(255,255,255,.5); color:#fff; font-size:22px; display:flex; align-items:center; justify-content:center; }
+  #adBannerBottom { position:absolute; bottom:0; left:0; right:0; height:50px; background:rgba(0,0,0,.15); display:flex; align-items:center; justify-content:center; color:rgba(255,255,255,.35); font-size:11px; z-index:3; pointer-events:none; border-top:1px solid rgba(255,255,255,.1); }
+
+  #shopBtn { position:absolute; top:10px; left:50%; transform:translateX(-50%); pointer-events:auto; background:rgba(0,0,0,.5); color:#ffd700; border:none; border-radius:10px; padding:6px 14px; font-size:14px; font-weight:bold; cursor:pointer; z-index:6; }
+  #shopOverlay { position:absolute; inset:0; background:rgba(0,0,0,.88); display:none; flex-direction:column; align-items:center; justify-content:center; color:#fff; text-align:center; z-index:30; padding:20px; }
+  #shopOverlay.open { display:flex; }
+  #shopOverlay h2 { color:#ffd700; margin-bottom:6px; }
+  #shopOverlay .gemCount { font-size:16px; margin-bottom:16px; color:#7fffd4; }
+  #shopOverlay .skinGrid { display:grid; grid-template-columns:1fr 1fr; gap:10px; max-width:420px; margin-bottom:16px; }
+  #shopOverlay .skinCard { background:rgba(255,255,255,.08); border-radius:12px; padding:10px; border:2px solid transparent; cursor:pointer; }
+  #shopOverlay .skinCard.owned { border-color:#4caf50; }
+  #shopOverlay .skinCard.equipped { border-color:#ffd700; }
+  #shopOverlay .skinCard .swatch { width:100%; height:40px; border-radius:8px; margin-bottom:6px; }
+  #shopOverlay .skinCard .label { font-size:12px; }
+  #shopOverlay .skinCard .price { font-size:11px; color:#ffd700; }
+  #shopOverlay .iapRow { display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; justify-content:center; }
+  #shopOverlay .iapBtn { background:#ffd700; color:#1a1a2e; border:none; border-radius:20px; padding:10px 18px; font-weight:bold; font-size:13px; cursor:pointer; }
+  #shopOverlay .closeBtn { background:rgba(255,255,255,.15); color:#fff; border:none; border-radius:20px; padding:10px 24px; font-weight:bold; cursor:pointer; }
+</style>
+</head>
+<body>
+<div id="gameContainer">
+  <div id="adBannerBottom">AdMob Banner Placeholder — 320x50 (reserved by native app shell)</div>
+  <button id="shopBtn">🛍️ Shop</button>
+  <div id="shopOverlay"><h2>CAGF Shop</h2><div class="gemCount">💎 <span id="gemCountDisplay">0</span> Gems</div><div class="skinGrid" id="skinGrid"></div><div class="iapRow"><button class="iapBtn" id="removeAdsBtn">Remove Ads</button><button class="iapBtn" id="familyPassBtn">Family Pass (All Skins + No Ads)</button></div><button class="closeBtn" id="closeShopBtn">Close</button></div>
+
+  <canvas id="game" width="960" height="540"></canvas>
+  <div id="hud">
+    <div style="display:flex; gap:8px;">
+      <div class="hud-box">🌟 <span id="coinCount">0</span></div>
+      <div class="hud-box">Lvl <span id="levelNum">1</span></div>
+    </div>
+    <div class="hud-box"><div id="hearts"></div></div>
+    <button id="pauseBtn">⏸</button>
+  </div>
+  <div id="touchControls">
+    <div class="dpad">
+      <div class="touchBtn" id="btnLeft">⬅</div>
+      <div class="touchBtn" id="btnRight">➡</div>
+    </div>
+    <div class="touchBtn" id="btnJump">⬆</div>
+  </div>
+  <div id="startOverlay" class="overlay">
+    <h1>Alien Jungle Escape</h1>
+    <p>Zeb the Alien crash-landed in a dense jungle — explore to find the Jump Crystal<br>hidden deep in the level, then backtrack using your new Double Jump<br>to reach ledges you couldn't before!<br><br>
+    <strong>Arrows / Tap L-R</strong> = Move &nbsp;|&nbsp; <strong>Space / Tap ⬆</strong> = Jump (Double Jump once unlocked)</p>
+    <button class="btn" id="startBtn">Start Exploring</button>
+  </div>
+  <div id="pauseOverlay" class="overlay hidden"><h1>Paused</h1><button class="btn" id="resumeBtn">Resume</button></div>
+  <div id="gameOverOverlay" class="overlay hidden"><h1>Lost in the Jungle!</h1><p id="gameOverScore"></p><button class="btn" id="retryBtn">Try Again</button></div>
+  <div id="winOverlay" class="overlay hidden"><h1>🏆 Escaped the Jungle! 🏆</h1><p id="winScore"></p><button class="btn" id="playAgainBtn">Play Again</button></div>
+</div>
+
+<script>
+/* ---------- AdMob Bridge (stub) ---------- */
+const AdBridge = {
+  showInterstitial(){ if(window.AndroidAds && window.AndroidAds.showInterstitial) window.AndroidAds.showInterstitial(); else if(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.iosAds) window.webkit.messageHandlers.iosAds.postMessage('interstitial'); else console.log('[AdMob] interstitial placeholder'); },
+  showRewarded(cb){ if(window.AndroidAds && window.AndroidAds.showRewarded) window.AndroidAds.showRewarded(); else if(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.iosAds) window.webkit.messageHandlers.iosAds.postMessage('rewarded'); else { console.log('[AdMob] rewarded placeholder'); if(cb) cb(); } }
+};
+
+/* ---------- CAGF Shop / Cosmetic IAP System (shared across all 20 games) ----------
+   Cosmetic-only skins recolor the game canvas via CSS filter — no gameplay
+   advantage, so this stays compliant with Google Play / Apple kids-app policy
+   (no pay-to-win, no chance-based loot boxes). Gems are earned free through
+   play AND purchasable. Native wrapper should implement window.IAPBridge with
+   real store purchase flows (Google Play Billing / Apple StoreKit); this stub
+   falls back to localStorage simulation for browser/PC testing.
+   Skins apply a CSS filter to the <canvas id="game"> element directly, so this
+   works identically in every CAGF game without touching draw code. */
+const SKINS = [
+  { id:'default', label:'Classic', price:0, filter:'none' },
+  { id:'ninjaRed', label:'Ninja Red', price:20, filter:'hue-rotate(320deg) saturate(1.4)' },
+  { id:'oceanBlue', label:'Ocean Blue', price:20, filter:'hue-rotate(180deg) saturate(1.3)' },
+  { id:'toxicGreen', label:'Toxic Green', price:25, filter:'hue-rotate(90deg) saturate(1.5)' },
+  { id:'royalGold', label:'Royal Gold', price:30, filter:'hue-rotate(40deg) saturate(1.6) brightness(1.1)' }
+];
+
+const IAPBridge = {
+  getGems(){
+    if(window.CAGFNative && window.CAGFNative.getGems) return window.CAGFNative.getGems();
+    return parseInt(localStorage.getItem('cagf_gems')||'0',10);
+  },
+  setGems(v){
+    if(window.CAGFNative && window.CAGFNative.setGems){ window.CAGFNative.setGems(v); return; }
+    localStorage.setItem('cagf_gems', String(v));
+  },
+  addGems(n){ this.setGems(this.getGems()+n); },
+  ownsSkin(id){
+    if(window.CAGFNative && window.CAGFNative.ownsSkin) return window.CAGFNative.ownsSkin(id);
+    const owned = JSON.parse(localStorage.getItem('cagf_owned_skins')||'["default"]');
+    return owned.includes(id);
+  },
+  buySkin(id, price){
+    const gems=this.getGems();
+    if(gems<price) return false;
+    this.setGems(gems-price);
+    if(window.CAGFNative && window.CAGFNative.grantSkin){ window.CAGFNative.grantSkin(id); }
+    else { const owned=JSON.parse(localStorage.getItem('cagf_owned_skins')||'["default"]'); owned.push(id); localStorage.setItem('cagf_owned_skins',JSON.stringify(owned)); }
+    return true;
+  },
+  getEquippedSkin(){
+    if(window.CAGFNative && window.CAGFNative.getEquippedSkin) return window.CAGFNative.getEquippedSkin();
+    return localStorage.getItem('cagf_equipped_skin')||'default';
+  },
+  equipSkin(id){
+    if(window.CAGFNative && window.CAGFNative.equipSkin){ window.CAGFNative.equipSkin(id); return; }
+    localStorage.setItem('cagf_equipped_skin', id);
+  },
+  hasFamilyPass(){
+    if(window.CAGFNative && window.CAGFNative.hasFamilyPass) return window.CAGFNative.hasFamilyPass();
+    return localStorage.getItem('cagf_family_pass')==='1';
+  },
+  purchaseRemoveAds(){
+    // Real IAP flow implemented natively (Google Play Billing / StoreKit).
+    if(window.CAGFNative && window.CAGFNative.purchaseRemoveAds){ window.CAGFNative.purchaseRemoveAds(); return; }
+    console.log('[IAP] Remove Ads purchase placeholder (no native bridge)');
+    localStorage.setItem('cagf_no_ads','1');
+  },
+  purchaseFamilyPass(){
+    if(window.CAGFNative && window.CAGFNative.purchaseFamilyPass){ window.CAGFNative.purchaseFamilyPass(); return; }
+    console.log('[IAP] Family Pass purchase placeholder (no native bridge)');
+    localStorage.setItem('cagf_family_pass','1');
+    SKINS.forEach(s=>{ if(!IAPBridge.ownsSkin(s.id)) IAPBridge.buySkin(s.id, 0); });
+  }
+};
+
+function applyEquippedSkin(){
+  const equipped = IAPBridge.getEquippedSkin();
+  const skin = SKINS.find(s=>s.id===equipped) || SKINS[0];
+  const canvasEl = document.getElementById('game');
+  if(canvasEl) canvasEl.style.filter = skin.filter;
+}
+
+function renderShop(){
+  document.getElementById('gemCountDisplay').textContent = IAPBridge.getGems();
+  const grid = document.getElementById('skinGrid');
+  grid.innerHTML='';
+  SKINS.forEach(s=>{
+    const owned = IAPBridge.ownsSkin(s.id) || s.price===0;
+    const equipped = IAPBridge.getEquippedSkin()===s.id;
+    const card = document.createElement('div');
+    card.className = 'skinCard' + (owned?' owned':'') + (equipped?' equipped':'');
+    card.innerHTML = `<div class="swatch" style="background:#7fb8d9;filter:${s.filter}"></div><div class="label">${s.label}</div><div class="price">${owned?(equipped?'Equipped':'Owned — tap to equip'):'💎 '+s.price}</div>`;
+    card.addEventListener('click', ()=>{
+      if(owned){ IAPBridge.equipSkin(s.id); applyEquippedSkin(); renderShop(); }
+      else { if(IAPBridge.buySkin(s.id, s.price)){ IAPBridge.equipSkin(s.id); applyEquippedSkin(); } renderShop(); }
+    });
+    grid.appendChild(card);
+  });
+}
+document.getElementById('shopBtn').addEventListener('click', ()=>{ renderShop(); document.getElementById('shopOverlay').classList.add('open'); });
+document.getElementById('closeShopBtn').addEventListener('click', ()=>{ document.getElementById('shopOverlay').classList.remove('open'); });
+document.getElementById('removeAdsBtn').addEventListener('click', ()=> IAPBridge.purchaseRemoveAds());
+document.getElementById('familyPassBtn').addEventListener('click', ()=>{ IAPBridge.purchaseFamilyPass(); renderShop(); });
+applyEquippedSkin();
+
+
+/* =========================================================
+   ALIEN JUNGLE ESCAPE — CAGF Game 19
+   MECHANIC: Metroidvania-lite — a single wide level with some
+   ledges unreachable until the player finds the Jump Crystal
+   (grants double jump), requiring backtrack to previously-seen
+   areas. Distinct from all 18 prior mechanics.
+   Vanilla JS + Canvas, single file, no external assets.
+   ========================================================= */
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const GROUND_Y = H-70;
+
+let state='start', frame=0, coins=0, lives=3, level=1;
+const MAX_LEVEL=10;
+let invincibleTimer=0, shieldActive=false, bossActive=false, cameraX=0;
+let hasDoubleJump=false;
+
+const keys={};
+window.addEventListener('keydown', e=>{ keys[e.code]=true; if(e.code==='Space'||e.code==='ArrowUp') doJump(); if(e.code==='KeyP') togglePause(); });
+window.addEventListener('keyup', e=> keys[e.code]=false);
+const btnLeft=document.getElementById('btnLeft'), btnRight=document.getElementById('btnRight');
+btnLeft.addEventListener('touchstart', e=>{e.preventDefault(); keys['touchLeft']=true;});
+btnLeft.addEventListener('touchend', e=>{e.preventDefault(); keys['touchLeft']=false;});
+btnRight.addEventListener('touchstart', e=>{e.preventDefault(); keys['touchRight']=true;});
+btnRight.addEventListener('touchend', e=>{e.preventDefault(); keys['touchRight']=false;});
+document.getElementById('btnJump').addEventListener('touchstart', e=>{e.preventDefault(); doJump();});
+
+// ---------- Player: Zeb the Alien ----------
+const GRAVITY=0.8, JUMP_FORCE=-14.5, MOVE_SPEED=4;
+const player = { x:80, y:GROUND_Y-40, w:32, h:40, vx:0, vy:0, onGround:false, jumpsUsed:0, state:'idle', hurtTimer:0, facing:1 };
+function doJump(){
+  if(state!=='playing') return;
+  if(player.onGround){ player.vy=JUMP_FORCE; player.onGround=false; player.jumpsUsed=1; player.state='jump'; }
+  else if(hasDoubleJump && player.jumpsUsed<2){ player.vy=JUMP_FORCE*0.85; player.jumpsUsed=2; }
+}
+
+// ---------- Level: platforms including some "high ledges" only reachable with double jump ----------
+let platforms=[], highLedges=[], obstacles=[], collectibles=[], crystalPos=null, levelWidth=0, goalX=0;
+function buildLevel(lv){
+  platforms=[{x:0,y:GROUND_Y,w:300,h:H-GROUND_Y}];
+  highLedges=[]; obstacles=[]; collectibles=[];
+  let x=300;
+  const segCount = 10+lv;
+  for(let i=0;i<segCount;i++){
+    const gap = 80+Math.random()*70;
+    x += gap;
+    const w = 100+Math.random()*80;
+    platforms.push({x,y:GROUND_Y,w,h:H-GROUND_Y});
+    // some segments have a high ledge above requiring double jump
+    if(i>2 && Math.random()<0.35){
+      highLedges.push({x:x+w*0.3, y:GROUND_Y-150, w:70, h:16});
+      collectibles.push({x:x+w*0.3+35, y:GROUND_Y-180, w:20, h:20, type:'gem2', taken:false, high:true});
+    }
+    if(Math.random()<0.5) obstacles.push({type:'spikes', x:x+w*0.6, y:GROUND_Y-18, w:24, h:18});
+    if(Math.random()<0.6) collectibles.push({x:x+w*0.4, y:GROUND_Y-40, w:20, h:20, type:'gem', taken:false, high:false});
+    x += w;
+  }
+  levelWidth = x+400;
+  goalX = x+300;
+  // Jump Crystal placed roughly in the middle, only accessible via normal path
+  crystalPos = { x: 300 + (levelWidth-600)*0.55, y: GROUND_Y-50, w:26, h:26, taken: hasDoubleJump };
+}
+
+// ---------- Boss: Dragon (jungle variant) ----------
+let boss=null;
+function spawnBoss(finalBoss){
+  boss = { x:goalX-20, y:GROUND_Y-140, w:140, h:130, hp:finalBoss?3:2, maxHp:finalBoss?3:2, attackTimer:0, tell:false, tellTimer:0, projectiles:[], final:finalBoss };
+  bossActive=true;
+}
+function updateBoss(){
+  if(!boss) return;
+  boss.attackTimer++;
+  if(boss.attackTimer>110 && !boss.tell){ boss.tell=true; boss.tellTimer=40; }
+  if(boss.tell){
+    boss.tellTimer--;
+    if(boss.tellTimer<=0){
+      boss.tell=false; boss.attackTimer=0;
+      boss.projectiles.push({x:boss.x, y:boss.y+60, vx:-6, w:18, h:18});
+      if(boss.final && boss.hp<=1) boss.projectiles.push({x:boss.x, y:boss.y+90, vx:-8, w:18, h:18});
+    }
+  }
+  boss.projectiles.forEach(p=>p.x+=p.vx);
+  boss.projectiles=boss.projectiles.filter(p=>p.x>-30);
+  const pRect={x:player.x,y:player.y,w:player.w,h:player.h};
+  const bRect={x:boss.x,y:boss.y,w:boss.w,h:boss.h};
+  if(rectsOverlap(pRect,bRect) && player.vy>0 && !player.onGround && !boss.tell){
+    boss.hp--; player.vy=JUMP_FORCE*0.6;
+    if(boss.hp<=0){ bossActive=false; const wasFinal=boss.final; boss=null; if(wasFinal) triggerWin(); else advanceLevel(); }
+  } else if(rectsOverlap(pRect,bRect) && invincibleTimer<=0 && !shieldActive){ hurtPlayer(); }
+  boss.projectiles.forEach(p=>{ if(invincibleTimer<=0 && !shieldActive && rectsOverlap(pRect,{x:p.x-p.w/2,y:p.y-p.h/2,w:p.w,h:p.h})) hurtPlayer(); });
+}
+function rectsOverlap(a,b){ return a.x<b.x+b.w && a.x+a.w>b.x && a.y<b.y+b.h && a.y+a.h>b.y; }
+
+function hurtPlayer(){ if(invincibleTimer>0) return; lives--; player.state='hurt'; player.hurtTimer=40; invincibleTimer=90; updateHUD(); if(lives<=0) triggerGameOver(); }
+function updateHUD(){
+  document.getElementById('coinCount').textContent=coins;
+  document.getElementById('levelNum').textContent=level;
+  const heartsEl=document.getElementById('hearts'); heartsEl.innerHTML='';
+  for(let i=0;i<3;i++){ const s=document.createElement('span'); s.textContent = i<lives?'❤️':'🤍'; heartsEl.appendChild(s); }
+}
+function advanceLevel(){
+  level++;
+  if(level>MAX_LEVEL){ triggerWin(); return; }
+  buildLevel(level);
+  player.x=80; player.y=GROUND_Y-40; player.vx=0; player.vy=0; cameraX=0;
+  updateHUD();
+}
+
+function drawBackground(){
+  ctx.fillStyle='#1a4a1a'; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#0d2b0d';
+  for(let i=-1;i<10;i++){ const bx=(i*140-cameraX*0.4)%(W+140); ctx.fillRect(bx,H-160,20,160); ctx.beginPath(); ctx.arc(bx+10,H-160,45,0,Math.PI*2); ctx.fill(); }
+}
+function drawPlatform(p){
+  const sx=p.x-cameraX; if(sx+p.w<0||sx>W) return;
+  ctx.fillStyle='#3a6a2a'; ctx.fillRect(sx,p.y,p.w,p.h);
+  ctx.fillStyle='#5a8e3a'; ctx.fillRect(sx,p.y,p.w,8);
+}
+function drawHighLedge(l){
+  const sx=l.x-cameraX; if(sx+l.w<0||sx>W) return;
+  ctx.fillStyle= hasDoubleJump ? '#7a9e5a' : '#4a5a3a';
+  ctx.fillRect(sx,l.y,l.w,l.h);
+}
+function drawPlayer(){
+  const sx=player.x-cameraX; ctx.save();
+  const flashHurt = player.hurtTimer>0 && Math.floor(frame/4)%2===0;
+  if(flashHurt) ctx.globalAlpha=0.4;
+  ctx.translate(sx+player.w/2,0); ctx.scale(player.facing,1); ctx.translate(-player.w/2,0);
+  ctx.fillStyle='#3adb76'; ctx.beginPath(); ctx.ellipse(player.w/2,player.y+player.h/2,player.w/2,player.h/2,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#7fffd4'; ctx.beginPath(); ctx.arc(player.w/2,player.y+8,9,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+  if(shieldActive){ ctx.strokeStyle='rgba(150,220,255,.9)'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(sx+player.w/2,player.y+player.h/2,player.w*0.9,0,Math.PI*2); ctx.stroke(); }
+}
+function drawObstacle(o){
+  const sx=o.x-cameraX; if(sx<-40||sx>W+40) return;
+  ctx.fillStyle='#8a6a4a';
+  for(let i=0;i<2;i++){ ctx.beginPath(); ctx.moveTo(sx-11+i*11,o.y+o.h); ctx.lineTo(sx-5.5+i*11,o.y); ctx.lineTo(sx+i*11,o.y+o.h); ctx.fill(); }
+}
+function drawCollectible(c){
+  if(c.taken) return;
+  const sx=c.x-cameraX; if(sx<-30||sx>W+30) return;
+  ctx.save();
+  ctx.fillStyle = c.type==='gem2' ? '#00E5FF' : '#ffd166';
+  ctx.beginPath(); ctx.moveTo(sx,c.y-9); ctx.lineTo(sx+8,c.y); ctx.lineTo(sx,c.y+9); ctx.lineTo(sx-8,c.y); ctx.fill();
+  ctx.restore();
+}
+function drawCrystal(){
+  if(!crystalPos || crystalPos.taken) return;
+  const sx=crystalPos.x-cameraX; if(sx<-30||sx>W+30) return;
+  ctx.save();
+  ctx.fillStyle='#66ffcc'; ctx.globalAlpha=0.6+Math.sin(frame/10)*0.3;
+  ctx.beginPath(); ctx.moveTo(sx,crystalPos.y-14); ctx.lineTo(sx+10,crystalPos.y); ctx.lineTo(sx,crystalPos.y+14); ctx.lineTo(sx-10,crystalPos.y); ctx.fill();
+  ctx.restore();
+}
+function drawBoss(){
+  if(!boss) return; const sx=boss.x-cameraX; ctx.save();
+  ctx.fillStyle = boss.tell? '#ff5533' : '#7a2a2a';
+  ctx.beginPath(); ctx.ellipse(sx+boss.w/2, boss.y+boss.h/2, boss.w/2, boss.h/2.2, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle='#ffcc00'; ctx.beginPath(); ctx.arc(sx+boss.w/2-25,boss.y+boss.h/2-25,7,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(sx+boss.w/2+25,boss.y+boss.h/2-25,7,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#000'; ctx.fillRect(sx, boss.y-20, boss.w, 10);
+  ctx.fillStyle='#e00'; ctx.fillRect(sx, boss.y-20, boss.w*(boss.hp/boss.maxHp), 10);
+  ctx.restore();
+  boss.projectiles.forEach(p=>{ ctx.fillStyle='#FF4500'; ctx.beginPath(); ctx.arc(p.x-cameraX,p.y,9,0,Math.PI*2); ctx.fill(); });
+}
+
+function update(){
+  frame++;
+  if(player.hurtTimer>0) player.hurtTimer--;
+  if(invincibleTimer>0) invincibleTimer--;
+
+  const left = keys['ArrowLeft']||keys['KeyA']||keys['touchLeft'];
+  const right = keys['ArrowRight']||keys['KeyD']||keys['touchRight'];
+  player.vx=0;
+  if(left){ player.vx=-MOVE_SPEED; player.facing=-1; }
+  if(right){ player.vx=MOVE_SPEED; player.facing=1; }
+
+  player.vy += GRAVITY;
+  player.x += player.vx;
+  player.y += player.vy;
+
+  player.onGround=false;
+  const allPlats = platforms.concat(highLedges);
+  allPlats.forEach(p=>{
+    const withinX = player.x+player.w>p.x && player.x<p.x+p.w;
+    const feetY = player.y+player.h;
+    if(withinX && player.vy>=0 && feetY>=p.y && feetY<=p.y+16+Math.abs(player.vy)){
+      player.y=p.y-player.h; player.vy=0; player.onGround=true; player.jumpsUsed=0;
+      if(player.hurtTimer<=0) player.state = player.vx!==0?'run':'idle';
+    }
+  });
+  if(!player.onGround) player.state='jump';
+  if(player.x<0) player.x=0;
+  if(player.y>H+200){ hurtPlayer(); if(lives>0){ player.x=Math.max(80,cameraX+80); player.y=GROUND_Y-player.h; player.vy=0; } }
+
+  const targetCam = Math.max(0, Math.min(levelWidth-W, player.x - W*0.4));
+  cameraX += (targetCam-cameraX)*0.12;
+
+  // pick up jump crystal
+  if(crystalPos && !crystalPos.taken){
+    const dist=Math.hypot(crystalPos.x-player.x, crystalPos.y-player.y);
+    if(dist<40){ crystalPos.taken=true; hasDoubleJump=true; coins+=10; updateHUD(); }
+  }
+
+  if(!bossActive && player.x >= goalX-60){
+    if(level===5 || level===MAX_LEVEL) spawnBoss(level===MAX_LEVEL); else advanceLevel();
+  }
+  if(bossActive) updateBoss();
+
+  const pRect={x:player.x,y:player.y,w:player.w,h:player.h};
+  obstacles.forEach(o=>{
+    if(invincibleTimer<=0 && !shieldActive && rectsOverlap(pRect,{x:o.x-11,y:o.y,w:22,h:o.h})) hurtPlayer();
+  });
+  collectibles.forEach(c=>{
+    if(!c.taken && rectsOverlap(pRect,{x:c.x-c.w/2,y:c.y-c.h/2,w:c.w,h:c.h})){ c.taken=true; coins += c.type==='gem2'?5:1; updateHUD(); }
+  });
+
+  if(player.hurtTimer<=0 && player.state==='hurt') player.state='idle';
+}
+
+function render(){
+  drawBackground();
+  platforms.forEach(drawPlatform);
+  highLedges.forEach(drawHighLedge);
+  obstacles.forEach(drawObstacle);
+  collectibles.forEach(drawCollectible);
+  drawCrystal();
+  if(bossActive) drawBoss();
+  drawPlayer();
+  if(hasDoubleJump){
+    ctx.fillStyle='rgba(0,0,0,.4)'; ctx.fillRect(W-170,10,160,26);
+    ctx.fillStyle='#7fffd4'; ctx.font='13px Arial'; ctx.textAlign='left';
+    ctx.fillText('✨ Double Jump Unlocked!', W-160, 27);
+  }
+}
+function loop(){ if(state==='playing'){ update(); render(); } requestAnimationFrame(loop); }
+
+function triggerGameOver(){
+  IAPBridge.addGems(Math.floor((typeof coins!=='undefined'?coins:0)/5)+1); AdBridge.showInterstitial(); state='gameover'; document.getElementById('gameOverScore').textContent=`Stars collected: ${coins} — Reached Level ${level}`; document.getElementById('gameOverOverlay').classList.remove('hidden'); }
+function triggerWin(){
+  IAPBridge.addGems(Math.floor((typeof coins!=='undefined'?coins:0)/5)+5); AdBridge.showInterstitial(); state='win'; document.getElementById('winScore').textContent=`Final Score: ${coins} stars & gems!`; document.getElementById('winOverlay').classList.remove('hidden'); }
+function resetGame(){
+  coins=0; lives=3; level=1; frame=0; cameraX=0; boss=null; bossActive=false;
+  invincibleTimer=0; shieldActive=false; hasDoubleJump=false;
+  buildLevel(level);
+  player.x=80; player.y=GROUND_Y-40; player.vx=0; player.vy=0; player.state='idle';
+  updateHUD();
+}
+function togglePause(){
+  if(state==='playing'){ state='paused'; document.getElementById('pauseOverlay').classList.remove('hidden'); }
+  else if(state==='paused'){ state='playing'; document.getElementById('pauseOverlay').classList.add('hidden'); }
+}
+document.getElementById('startBtn').addEventListener('click', ()=>{ document.getElementById('startOverlay').classList.add('hidden'); resetGame(); state='playing'; });
+document.getElementById('pauseBtn').addEventListener('click', togglePause);
+document.getElementById('resumeBtn').addEventListener('click', togglePause);
+document.getElementById('retryBtn').addEventListener('click', ()=>{ document.getElementById('gameOverOverlay').classList.add('hidden'); resetGame(); state='playing'; });
+document.getElementById('playAgainBtn').addEventListener('click', ()=>{ document.getElementById('winOverlay').classList.add('hidden'); resetGame(); state='playing'; });
+updateHUD();
+loop();
+</script>
+</body>
+</html>
